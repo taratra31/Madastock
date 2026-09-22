@@ -1,0 +1,56 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Stores from './pages/Stores';
+import Products from './pages/Products';
+import Categories from './pages/Categories';
+import Stock from './pages/Stock';
+import Customers from './pages/Customers';
+import Invoices from './pages/Invoices';
+import StoreSettings from './pages/StoreSettings';
+import Vehicles from './pages/Vehicles';
+import Mechanics from './pages/Mechanics';
+import WorkOrders from './pages/WorkOrders';
+import Appointments from './pages/Appointments';
+import Garage from './pages/Garage';
+import Leads from './pages/Leads';
+import Interactions from './pages/Interactions';
+import Reminders from './pages/Reminders';
+import AppLayout from './layouts/AppLayout';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/stores" element={<Stores />} />
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/categories" element={<Categories />} />
+          <Route path="/stock" element={<Stock />} />
+          <Route path="/customers" element={<Customers />} />
+          <Route path="/invoices" element={<Invoices />} />
+          <Route path="/settings" element={<StoreSettings />} />
+          <Route path="/vehicles" element={<Vehicles />} />
+          <Route path="/mechanics" element={<Mechanics />} />
+          <Route path="/work-orders" element={<WorkOrders />} />
+          <Route path="/appointments" element={<Appointments />} />
+          <Route path="/garage" element={<Garage />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/interactions" element={<Interactions />} />
+          <Route path="/reminders" element={<Reminders />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Toaster position="top-right" richColors />
+    </BrowserRouter>
+  );
+}
+
+export default App;

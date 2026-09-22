@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: madastock
+    runtime: node
+    plan: free
+    healthCheckPath: /api/v1/health
+    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build && npx prisma generate
+    startCommand: cd backend && npx prisma migrate deploy && node dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:./dev.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://madastock.onrender.com

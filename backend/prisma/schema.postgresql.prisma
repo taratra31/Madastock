@@ -1,0 +1,1214 @@
+// MadaStock - Schéma Prisma (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum StoreMemberRole {
+  OWNER
+  ADMIN
+  MANAGER
+  CASHIER
+  STOCK_MANAGER
+  ACCOUNTANT
+}
+
+enum SaleStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+enum PurchaseStatus {
+  PENDING
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  SALE
+  PURCHASE
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN
+  EXPIRY_DAMAGE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum TransactionType {
+  IN
+  OUT
+}
+
+enum CashTransactionSource {
+  SALE
+  EXPENSE
+  PURCHASE
+  DEPOSIT
+  WITHDRAWAL
+  ADJUSTMENT
+}
+
+enum NotificationType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  EXPIRY_SOON
+  SALE_COMPLETED
+  PAYMENT_RECEIVED
+  SUBSCRIPTION
+  SYSTEM
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+}
+
+// ============================================================
+// GARAGE & ATELIER
+// ============================================================
+
+enum VehicleType {
+  CAR
+  MOTORCYCLE
+  TRUCK
+  VAN
+  TAXI
+  BUS
+  OTHER
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  ELECTRIC
+  HYBRID
+  LPG
+  OTHER
+}
+
+enum WorkOrderStatus {
+  QUOTED
+  IN_PROGRESS
+  WAITING_PART
+  PAUSED
+  COMPLETED
+  COLLECTED
+  CANCELLED
+}
+
+enum WorkOrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum LineItemType {
+  LABOR
+  PART
+  OTHER
+}
+
+enum AppointmentType {
+  REPAIR
+  MAINTENANCE
+  INSPECTION
+  DIAGNOSIS
+  PICKUP
+  OTHER
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ============================================================
+// CRM
+// ============================================================
+
+enum LeadSource {
+  REFERRAL
+  WALK_IN
+  ONLINE
+  PHONE
+  SOCIAL_MEDIA
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  FOLLOW_UP
+  WON
+  LOST
+}
+
+enum InteractionType {
+  CALL
+  EMAIL
+  WHATSAPP
+  SMS
+  VISIT
+  MEETING
+  NOTE
+}
+
+enum ReminderType {
+  SERVICE_DUE
+  FOLLOW_UP
+  PAYMENT
+  APPOINTMENT
+  OTHER
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  DONE
+  CANCELLED
+}
+
+enum InvoiceDocType {
+  QUOTE
+  INVOICE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  ISSUED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+// ============================================================
+// AUTH & MULTI-TENANT
+// ============================================================
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  fullName      String
+  phone         String?
+  avatarUrl     String?
+  isActive      Boolean        @default(true)
+  isSuperAdmin  Boolean        @default(false)
+  emailVerified Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  memberships      StoreMember[]
+  createdSales     Sale[]               @relation("SaleCreatedBy")
+  updatedSales     Sale[]               @relation("SaleUpdatedBy")
+  cancelledSales   Sale[]               @relation("SaleCancelledBy")
+  cashSessions     CashSession[]        @relation("CashSessionOpenedBy")
+  cashTransactions CashTransaction[]
+  stockMovements   StockMovement[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  mechanics        Mechanic[]
+  createdWorkOrders   WorkOrder[]    @relation("WorkOrderCreatedBy")
+  createdAppointments Appointment[]  @relation("AppointmentCreatedBy")
+  assignedLeads       Lead[]         @relation("LeadAssignedTo")
+  performedInteractions Interaction[] @relation("InteractionPerformedBy")
+  assignedReminders   Reminder[]     @relation("ReminderAssignedTo")
+  createdInvoices     Invoice[]      @relation("InvoiceCreatedBy")
+
+  @@index([email])
+  @@map("users")
+}
+
+model Store {
+  id           String         @id @default(uuid())
+  name         String
+  slug         String?        @unique
+  description  String?
+  logoUrl      String?
+  address      String?
+  city         String?
+  country      String         @default("MG")
+  phone        String?
+  email        String?
+  fiscalNumber String?
+  statNumber   String?
+  currency     String         @default("MGA")
+  timezone     String         @default("Indian/Antananarivo")
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  members          StoreMember[]
+  subscription     Subscription?
+  categories       Category[]
+  brands           Brand[]
+  products         Product[]
+  warehouses       Warehouse[]
+  suppliers        Supplier[]
+  customers        Customer[]
+  sales            Sale[]
+  purchases        Purchase[]
+  expenses         Expense[]
+  cashSessions     CashSession[]
+  cashTransactions CashTransaction[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  vehicles         Vehicle[]
+  mechanics        Mechanic[]
+  workOrders       WorkOrder[]
+  appointments     Appointment[]
+  leads            Lead[]
+  interactions     Interaction[]
+  reminders        Reminder[]
+  invoices         Invoice[]
+
+  @@index([name])
+  @@map("stores")
+}
+
+model StoreMember {
+  id           String          @id @default(uuid())
+  storeId      String
+  userId       String
+  role         StoreMemberRole @default(MANAGER)
+  isOwner      Boolean         @default(false)
+  canManageAll Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@index([userId])
+  @@map("store_members")
+}
+
+// ============================================================
+// ABONNEMENTS
+// ============================================================
+
+model Plan {
+  id               String       @id @default(uuid())
+  name             String       @unique
+  description      String
+  priceAr          Decimal      @db.Decimal(12, 2)
+  billingCycle     BillingCycle @default(MONTHLY)
+  maxUsers         Int          @default(1)
+  maxProducts      Int          @default(50)
+  maxWarehouses    Int          @default(1)
+  maxCustomers     Int          @default(100)
+  maxSalesPerMonth Int?
+  featuresJson     Json
+  isActive         Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  storeId            String             @unique
+  planId             String
+  status             SubscriptionStatus @default(TRIALING)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  priceAr            Decimal            @db.Decimal(12, 2)
+  billingCycle       BillingCycle       @default(MONTHLY)
+  autoRenew          Boolean            @default(true)
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan  Plan  @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// ============================================================
+// CATALOGUE
+// ============================================================
+
+model Category {
+  id          String    @id @default(uuid())
+  storeId     String
+  name        String
+  description String?
+  parentId    String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  store    Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@unique([storeId, name])
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Brand {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  logoUrl     String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([storeId, name])
+  @@map("brands")
+}
+
+model Product {
+  id               String    @id @default(uuid())
+  storeId          String
+  categoryId       String?
+  brandId          String?
+  name             String
+  slug             String
+  description      String?
+  sku              String?
+  barcode          String?
+  imageUrl         String?
+  unit             String         @default("piece")
+  costPriceAr      Decimal        @db.Decimal(12, 2)
+  sellingPriceAr   Decimal        @db.Decimal(12, 2)
+  wholesalePriceAr Decimal?       @db.Decimal(12, 2)
+  taxRatePct       Decimal        @default(0) @db.Decimal(5, 2)
+  lowStockThreshold Int           @default(5)
+  trackStock       Boolean        @default(true)
+  sellByWeight     Boolean        @default(false)
+  hasVariants      Boolean        @default(false)
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  store         Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category      Category?       @relation(fields: [categoryId], references: [id])
+  brand         Brand?          @relation(fields: [brandId], references: [id])
+  variants      ProductVariant[]
+  stocks        Stock[]
+  movements     StockMovement[]
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
+  workOrderItems WorkOrderItem[]
+  invoiceItems   InvoiceItem[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, categoryId])
+  @@index([storeId, brandId])
+  @@index([storeId, name])
+  @@map("products")
+}
+
+model ProductVariant {
+  id             String   @id @default(uuid())
+  productId      String
+  name           String
+  sku            String?
+  barcode        String?
+  costPriceAr    Decimal? @db.Decimal(12, 2)
+  sellingPriceAr Decimal? @db.Decimal(12, 2)
+  optionsJson    Json?
+  imageUrl       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stocks        Stock[]
+  movements     StockMovement[]
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// ============================================================
+// STOCK & ENTREPÔTS
+// ============================================================
+
+model Warehouse {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String
+  address   String?
+  isMain    Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  stocks    Stock[]
+  movements StockMovement[]
+  purchases Purchase[]
+
+  @@unique([storeId, name])
+  @@map("warehouses")
+}
+
+model Stock {
+  id          String    @id @default(uuid())
+  storeId     String
+  warehouseId String
+  productId   String?
+  variantId   String?
+  quantityAr  Decimal   @default(0) @db.Decimal(14, 3)
+  reservedQty Decimal   @default(0) @db.Decimal(14, 3)
+  minStock    Decimal   @default(0) @db.Decimal(14, 3)
+  maxStock    Decimal?  @db.Decimal(14, 3)
+  location    String?
+  expiryDate  DateTime?
+  isShared    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, productId, variantId])
+  @@index([storeId])
+  @@index([productId])
+  @@map("stocks")
+}
+
+model StockMovement {
+  id            String       @id @default(uuid())
+  storeId       String
+  warehouseId   String
+  productId     String?
+  variantId     String?
+  movementType  MovementType
+  quantity      Decimal      @db.Decimal(14, 3)
+  unitCostAr    Decimal?     @db.Decimal(12, 2)
+  reason        String?
+  referenceId   String?
+  referenceType String?
+  createdById   String?
+  createdAt     DateTime     @default(now())
+
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  createdBy User?           @relation(fields: [createdById], references: [id])
+
+  @@index([storeId])
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+// ============================================================
+// PARTENAIRES
+// ============================================================
+
+model Supplier {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  tinNumber   String?
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  purchases Purchase[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@map("suppliers")
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  storeId       String
+  firstName     String
+  lastName      String
+  phone         String?
+  email         String?
+  address       String?
+  city          String?
+  birthDate     DateTime?
+  gender        String?
+  isVip         Boolean  @default(false)
+  loyaltyPoints Int      @default(0)
+  debtAr        Decimal  @default(0) @db.Decimal(12, 2)
+  notes         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sales Sale[]
+  vehicles     Vehicle[]
+  workOrders   WorkOrder[]
+  appointments Appointment[]
+  convertedLeads Lead[]
+  interactions Interaction[]
+  reminders    Reminder[]
+  invoices     Invoice[]
+
+  @@index([storeId])
+  @@map("customers")
+}
+
+// ============================================================
+// VENTES
+// ============================================================
+
+model Sale {
+  id            String        @id @default(uuid())
+  storeId       String
+  receiptNumber String        @unique
+  customerId    String?
+  status        SaleStatus    @default(COMPLETED)
+  paymentStatus PaymentStatus @default(PAID)
+  subtotalAr    Decimal       @db.Decimal(12, 2)
+  discountAr    Decimal       @default(0) @db.Decimal(12, 2)
+  taxAr         Decimal       @default(0) @db.Decimal(12, 2)
+  totalAr       Decimal       @db.Decimal(12, 2)
+  amountPaidAr  Decimal       @default(0) @db.Decimal(12, 2)
+  changeAr      Decimal       @default(0) @db.Decimal(12, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  notes         String?
+  isWholesale   Boolean       @default(false)
+  createdById   String?
+  updatedById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
+
+  store       Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  createdBy   User?      @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?      @relation("SaleUpdatedBy", fields: [updatedById], references: [id])
+  cancelledBy User?      @relation("SaleCancelledBy", fields: [cancelledById], references: [id])
+  items       SaleItem[]
+  purchase    Purchase?
+
+  @@index([storeId])
+  @@index([customerId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String    @id @default(uuid())
+  saleId      String
+  productId   String?
+  variantId   String?
+  quantityAr  Decimal   @db.Decimal(14, 3)
+  unitPriceAr Decimal   @db.Decimal(12, 2)
+  costPriceAr Decimal   @db.Decimal(12, 2)
+  discountAr  Decimal   @default(0) @db.Decimal(12, 2)
+  taxAr       Decimal   @default(0) @db.Decimal(12, 2)
+  lineTotalAr Decimal   @db.Decimal(12, 2)
+
+  sale    Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+// ============================================================
+// ACHATS
+// ============================================================
+
+model Purchase {
+  id           String         @id @default(uuid())
+  storeId      String
+  supplierId   String?
+  warehouseId  String
+  referenceNo  String         @unique
+  status       PurchaseStatus @default(ORDERED)
+  subtotalAr   Decimal        @db.Decimal(12, 2)
+  discountAr   Decimal        @default(0) @db.Decimal(12, 2)
+  taxAr        Decimal        @default(0) @db.Decimal(12, 2)
+  shippingAr   Decimal        @default(0) @db.Decimal(12, 2)
+  totalAr      Decimal        @db.Decimal(12, 2)
+  amountPaidAr Decimal        @default(0) @db.Decimal(12, 2)
+  expectedAt   DateTime?
+  receivedAt   DateTime?
+  notes        String?
+  createdById  String?
+  saleId       String?        @unique
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  supplier  Supplier?  @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  sale      Sale?      @relation(fields: [saleId], references: [id])
+  items     PurchaseItem[]
+
+  @@index([storeId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id            String    @id @default(uuid())
+  purchaseId    String
+  productId     String?
+  variantId     String?
+  quantityAr    Decimal   @db.Decimal(14, 3)
+  unitCostAr    Decimal   @db.Decimal(12, 2)
+  discountAr    Decimal   @default(0) @db.Decimal(12, 2)
+  taxAr         Decimal   @default(0) @db.Decimal(12, 2)
+  lineTotalAr   Decimal   @db.Decimal(12, 2)
+  receivedQtyAr Decimal   @default(0) @db.Decimal(14, 3)
+
+  purchase Purchase        @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product?        @relation(fields: [productId], references: [id])
+  variant  ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([purchaseId])
+  @@map("purchase_items")
+}
+
+// ============================================================
+// DÉPENSES
+// ============================================================
+
+model Expense {
+  id            String        @id @default(uuid())
+  storeId       String
+  category      String
+  description   String?
+  amountAr      Decimal       @db.Decimal(12, 2)
+  incurredAt    DateTime      @default(now())
+  paymentMethod PaymentMethod @default(CASH)
+  receiptUrl    String?
+  createdById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([incurredAt])
+  @@index([category])
+  @@map("expenses")
+}
+
+// ============================================================
+// CAISSE
+// ============================================================
+
+model CashSession {
+  id               String    @id @default(uuid())
+  storeId          String
+  openedById       String
+  openedAt         DateTime  @default(now())
+  closedAt         DateTime?
+  openingBalanceAr Decimal   @default(0) @db.Decimal(12, 2)
+  closingBalanceAr Decimal?  @db.Decimal(12, 2)
+  expectedCloseAr  Decimal?  @db.Decimal(12, 2)
+  differenceAr     Decimal?  @db.Decimal(12, 2)
+  status           String    @default("OPEN")
+  notes            String?
+  closedById       String?
+  createdAt        DateTime  @default(now())
+
+  store        Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  openedBy     User              @relation("CashSessionOpenedBy", fields: [openedById], references: [id])
+  transactions CashTransaction[]
+
+  @@index([storeId])
+  @@index([openedAt])
+  @@map("cash_sessions")
+}
+
+model CashTransaction {
+  id              String                @id @default(uuid())
+  cashSessionId   String
+  storeId         String
+  transactionType TransactionType
+  amountAr        Decimal               @db.Decimal(12, 2)
+  source          CashTransactionSource @default(DEPOSIT)
+  method          PaymentMethod         @default(CASH)
+  description     String?
+  saleId          String?
+  expenseId       String?
+  purchaseId      String?
+  createdById     String?
+  createdAt       DateTime              @default(now())
+
+  cashSession CashSession @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
+  store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdBy   User?       @relation(fields: [createdById], references: [id])
+
+  @@index([cashSessionId])
+  @@index([storeId])
+  @@index([createdAt])
+  @@map("cash_transactions")
+}
+
+// ============================================================
+// NOTIFICATIONS & AUDIT
+// ============================================================
+
+model Notification {
+  id        String           @id @default(uuid())
+  storeId   String
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  dataJson  Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([storeId])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  storeId    String?
+  userId     String?
+  action     AuditAction
+  entity     String
+  entityId   String?
+  beforeJson Json?
+  afterJson  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// VÉHICULES
+// ============================================================
+
+model Vehicle {
+  id          String      @id @default(uuid())
+  storeId     String
+  customerId  String
+  plateNumber String
+  make        String?
+  model       String?
+  year        Int?
+  vin         String?
+  color       String?
+  engineNo    String?
+  mileageKm   Int?
+  fuelType    FuelType    @default(PETROL)
+  vehicleType VehicleType @default(CAR)
+  notes       String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  workOrders   WorkOrder[]
+  appointments Appointment[]
+  reminders    Reminder[]
+  invoices     Invoice[]
+
+  @@unique([storeId, plateNumber])
+  @@index([storeId, customerId])
+  @@map("vehicles")
+}
+
+// ============================================================
+// MÉCANICIENS & ÉQUIPE
+// ============================================================
+
+model Mechanic {
+  id            String    @id @default(uuid())
+  storeId       String
+  userId        String?
+  fullName      String
+  phone         String?
+  email         String?
+  specialty     String?
+  hourlyRateAr  Decimal?  @db.Decimal(12, 2)
+  commissionPct Decimal?  @db.Decimal(5, 2)
+  colorHex      String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id])
+  workOrders   WorkOrder[]
+  appointments Appointment[]
+
+  @@index([storeId])
+  @@map("mechanics")
+}
+
+// ============================================================
+// ORDRES DE RÉPARATION
+// ============================================================
+
+model WorkOrder {
+  id                  String           @id @default(uuid())
+  storeId             String
+  orderNumber         String
+  customerId          String
+  vehicleId           String?
+  mechanicId          String?
+  status              WorkOrderStatus  @default(QUOTED)
+  priority            WorkOrderPriority @default(NORMAL)
+  complaint           String?
+  diagnosis           String?
+  receivedAt          DateTime         @default(now())
+  startedAt           DateTime?
+  estimatedDeliveryAt DateTime?
+  completedAt         DateTime?
+  deliveryAt          DateTime?
+  laborCostAr         Decimal          @default(0) @db.Decimal(12, 2)
+  partsCostAr         Decimal          @default(0) @db.Decimal(12, 2)
+  discountAr          Decimal          @default(0) @db.Decimal(12, 2)
+  taxAr               Decimal          @default(0) @db.Decimal(12, 2)
+  totalAr             Decimal          @default(0) @db.Decimal(12, 2)
+  paymentStatus       PaymentStatus    @default(PENDING)
+  paymentMethod       PaymentMethod?
+  amountPaidAr        Decimal          @default(0) @db.Decimal(12, 2)
+  notes               String?
+  createdById         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  store        Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer     Customer        @relation(fields: [customerId], references: [id])
+  vehicle      Vehicle?        @relation(fields: [vehicleId], references: [id])
+  mechanic     Mechanic?       @relation(fields: [mechanicId], references: [id])
+  createdBy    User?           @relation("WorkOrderCreatedBy", fields: [createdById], references: [id])
+  items        WorkOrderItem[]
+  appointments Appointment[]
+  invoice      Invoice?
+  interactions Interaction[]
+  reminders    Reminder[]
+
+  @@unique([storeId, orderNumber])
+  @@index([storeId, status])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([storeId, receivedAt])
+  @@map("work_orders")
+}
+
+model WorkOrderItem {
+  id          String       @id @default(uuid())
+  workOrderId String
+  type        LineItemType @default(PART)
+  description String
+  productId   String?
+  quantityAr  Decimal      @default(1) @db.Decimal(14, 3)
+  unitPriceAr Decimal      @db.Decimal(12, 2)
+  discountAr  Decimal      @default(0) @db.Decimal(12, 2)
+  taxAr       Decimal      @default(0) @db.Decimal(12, 2)
+  lineTotalAr Decimal      @db.Decimal(12, 2)
+  createdAt   DateTime     @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  product   Product?  @relation(fields: [productId], references: [id])
+
+  @@index([workOrderId])
+  @@map("work_order_items")
+}
+
+// ============================================================
+// RENDEZ-VOUS & PLANNING
+// ============================================================
+
+model Appointment {
+  id          String            @id @default(uuid())
+  storeId     String
+  customerId  String
+  vehicleId   String?
+  mechanicId  String?
+  workOrderId String?
+  type        AppointmentType   @default(REPAIR)
+  status      AppointmentStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  durationMin Int               @default(60)
+  title       String?
+  notes       String?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  vehicle   Vehicle?   @relation(fields: [vehicleId], references: [id])
+  mechanic  Mechanic?  @relation(fields: [mechanicId], references: [id])
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
+  createdBy User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([storeId, scheduledAt])
+  @@index([storeId, mechanicId])
+  @@index([storeId, status])
+  @@map("appointments")
+}
+
+// ============================================================
+// CRM — LEADS
+// ============================================================
+
+model Lead {
+  id                  String     @id @default(uuid())
+  storeId             String
+  firstName           String
+  lastName            String
+  phone               String?
+  email               String?
+  source              LeadSource @default(WALK_IN)
+  status              LeadStatus @default(NEW)
+  valueAr             Decimal?   @db.Decimal(12, 2)
+  notes               String?
+  assignedToId        String?
+  nextFollowUpAt      DateTime?
+  firstContactAt      DateTime?
+  lastContactAt       DateTime?
+  convertedCustomerId String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  store             Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignedTo        User?        @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  convertedCustomer Customer?    @relation(fields: [convertedCustomerId], references: [id])
+  interactions      Interaction[]
+  reminders         Reminder[]
+
+  @@index([storeId, status])
+  @@index([storeId, assignedToId])
+  @@map("leads")
+}
+
+// ============================================================
+// CRM — INTERACTIONS
+// ============================================================
+
+model Interaction {
+  id            String          @id @default(uuid())
+  storeId       String
+  type          InteractionType @default(NOTE)
+  subject       String?
+  body          String?
+  customerId    String?
+  leadId        String?
+  workOrderId   String?
+  performedById String?
+  createdAt     DateTime        @default(now())
+
+  store       Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  lead        Lead?      @relation(fields: [leadId], references: [id])
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
+  performedBy User?      @relation("InteractionPerformedBy", fields: [performedById], references: [id])
+
+  @@index([storeId, createdAt])
+  @@index([customerId])
+  @@index([leadId])
+  @@map("interactions")
+}
+
+// ============================================================
+// CRM — RAPPELS
+// ============================================================
+
+model Reminder {
+  id           String         @id @default(uuid())
+  storeId      String
+  type         ReminderType
+  status       ReminderStatus @default(PENDING)
+  remindAt     DateTime
+  title        String
+  message      String?
+  customerId   String?
+  leadId       String?
+  vehicleId    String?
+  workOrderId  String?
+  invoiceId    String?
+  assignedToId String?
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer   Customer?  @relation(fields: [customerId], references: [id])
+  lead       Lead?      @relation(fields: [leadId], references: [id])
+  vehicle    Vehicle?   @relation(fields: [vehicleId], references: [id])
+  workOrder  WorkOrder? @relation(fields: [workOrderId], references: [id])
+  invoice    Invoice?   @relation(fields: [invoiceId], references: [id])
+  assignedTo User?      @relation("ReminderAssignedTo", fields: [assignedToId], references: [id])
+
+  @@index([storeId, status, remindAt])
+  @@index([storeId, type])
+  @@index([customerId])
+  @@map("reminders")
+}
+
+// ============================================================
+// FACTURATION — DEVIS & FACTURES
+// ============================================================
+
+model Invoice {
+  id            String         @id @default(uuid())
+  storeId       String
+  number        String
+  docType       InvoiceDocType @default(INVOICE)
+  status        InvoiceStatus  @default(DRAFT)
+  customerId    String
+  vehicleId     String?
+  workOrderId   String?        @unique
+  issueDate     DateTime       @default(now())
+  dueDate       DateTime?
+  validUntil    DateTime?
+  subtotalAr    Decimal        @db.Decimal(12, 2)
+  discountAr    Decimal        @default(0) @db.Decimal(12, 2)
+  taxAr         Decimal        @default(0) @db.Decimal(12, 2)
+  totalAr       Decimal        @db.Decimal(12, 2)
+  amountPaidAr  Decimal        @default(0) @db.Decimal(12, 2)
+  paymentStatus PaymentStatus  @default(PENDING)
+  paymentMethod PaymentMethod?
+  notes         String?
+  createdById   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  store      Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  vehicle    Vehicle?      @relation(fields: [vehicleId], references: [id])
+  workOrder  WorkOrder?    @relation(fields: [workOrderId], references: [id])
+  createdBy  User?         @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  items      InvoiceItem[]
+  reminders  Reminder[]
+
+  @@unique([storeId, number])
+  @@index([storeId, docType, status])
+  @@index([customerId])
+  @@index([storeId, issueDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String       @id @default(uuid())
+  invoiceId   String
+  type        LineItemType @default(PART)
+  description String
+  productId   String?
+  quantityAr  Decimal      @default(1) @db.Decimal(14, 3)
+  unitPriceAr Decimal      @db.Decimal(12, 2)
+  discountAr  Decimal      @default(0) @db.Decimal(12, 2)
+  taxAr       Decimal      @default(0) @db.Decimal(12, 2)
+  lineTotalAr Decimal      @db.Decimal(12, 2)
+  createdAt   DateTime     @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}

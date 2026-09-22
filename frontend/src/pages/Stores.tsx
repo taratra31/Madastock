@@ -1,0 +1,233 @@
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
+import { useStores, type Membership } from '../lib/store';
+import { Store, Plus, ChevronRight, CheckCircle2, Building2, MapPin } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '../lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Badge, Button, Card, EmptyState, Field, Input, Loading, Modal, PageHeader, Select } from '../components/ui';
+import { roleLabels } from '../lib/labels';
+
+const roleBadgeCls: Record<string, string> = {
+  OWNER: 'bg-yellow-50 text-yellow-700',
+  ADMIN: 'bg-blue-50 text-blue-700',
+  MANAGER: 'bg-violet-50 text-violet-700',
+  CASHIER: 'bg-slate-100 text-slate-600',
+  STOCK_MANAGER: 'bg-teal-50 text-teal-700',
+  ACCOUNTANT: 'bg-cyan-50 text-cyan-700',
+};
+
+export default function Stores() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const { currentStore, setCurrentStore, selectFirstStore } = useStores();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newCity, setNewCity] = useState('');
+  const [newCountry, setNewCountry] = useState('MG');
+  const [newCurrency, setNewCurrency] = useState('MGA');
+
+  const { data: memberships, isLoading: loadingMemberships } = useQuery({
+    queryKey: ['stores'],
+    queryFn: async () => {
+      const res = await api.get('/stores');
+      const list = res.data.memberships as Membership[];
+      selectFirstStore(list);
+      return list;
+    },
+    enabled: isAuthenticated,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { name: string; city?: string; country?: string; currency?: string }) => {
+      const res = await api.post('/stores', data);
+      return res.data.store as { id: string };
+    },
+    onSuccess: (store) => {
+      toast.success('Boutique créée');
+      queryClient.invalidateQueries({ queryKey: ['stores'] });
+      setCreateOpen(false);
+      setNewName('');
+      setNewCity('');
+      setCurrentStore(store.id);
+      navigate('/dashboard', { replace: true });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? 'Erreur lors de la création'),
+  });
+
+  if (isLoading || loadingMemberships) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loading />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  const handleSelect = (id: string) => {
+    setCurrentStore(id);
+    navigate('/dashboard', { replace: true });
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) {
+      toast.error('Saisissez le nom de la boutique');
+      return;
+    }
+    createMutation.mutate({ name: newName.trim(), city: newCity.trim() || undefined, country: newCountry, currency: newCurrency });
+  };
+
+  const list = memberships ?? [];
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center">
+            <Store className="w-5 h-5 text-white" />
+          </span>
+          <h1 className="text-lg font-bold tracking-tight text-dark-900">
+            Mada<span className="text-green-600">Stock</span>
+          </h1>
+        </div>
+        <span className="text-sm text-slate-500 hidden sm:block">{user?.email}</span>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+        <PageHeader
+          title="Mes boutiques"
+          subtitle="Sélectionnez une boutique pour gérer votre activité."
+          actions={
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Nouvelle boutique
+            </Button>
+          }
+        />
+
+        {!list || list.length === 0 ? (
+          <Card className="p-10 text-center">
+            <EmptyState
+              title="Aucune boutique"
+              description="Créez votre première boutique pour commencer à vendre."
+            />
+          </Card>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {list.map((m) => {
+              const isCurrent = currentStore?.id === m.store.id;
+              return (
+                <Card
+                  key={m.store.id}
+                  className={`p-5 cursor-pointer transition-all hover:border-green-300 hover:shadow-md ${
+                    isCurrent ? 'ring-2 ring-green-500 border-green-500' : ''
+                  }`}
+                >
+                  <button type="button" onClick={() => handleSelect(m.store.id)} className="w-full text-left">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                          <Store className="w-5 h-5 text-green-600" />
+                        </span>
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-dark-900 truncate flex items-center gap-1.5">
+                            {m.store.name}
+                            {isCurrent && <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />}
+                          </h4>
+                          <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3 h-3" />
+                            {m.store.city ? `${m.store.city}, ` : ''}
+                            {new Intl.DisplayNames(['fr'], { type: 'region' }).of(m.store.country) ?? m.store.country}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 mt-1" />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-4">
+                      <Badge className={roleBadgeCls[m.role] ?? 'bg-slate-100 text-slate-600'}>
+                        {roleLabels[m.role] ?? m.role}
+                      </Badge>
+                      {m.store.subscription && (
+                        <Badge className="bg-slate-100 text-slate-600">{m.store.subscription.plan.name}</Badge>
+                      )}
+                      {m.store.subscription && (
+                        <Badge
+                          className={
+                            m.store.subscription.status === 'TRIALING' || m.store.subscription.status === 'ACTIVE'
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-amber-50 text-amber-700'
+                          }
+                        >
+                          {m.store.subscription.status === 'TRIALING'
+                            ? 'Essai'
+                            : m.store.subscription.status === 'ACTIVE'
+                              ? 'Active'
+                              : m.store.subscription.status}
+                        </Badge>
+                      )}
+                      {!m.store.active && <Badge className="bg-red-50 text-red-600">Inactive</Badge>}
+                      <span className="ml-auto text-xs text-slate-400">{m.store.currency}</span>
+                    </div>
+                  </button>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <p className="text-center text-xs text-slate-400 mt-8">
+          <Building2 className="w-3.5 h-3.5 inline mr-1 align-[-2px]" />
+          Chaque boutique garde ses produits, son stock et ses ventes séparés.
+        </p>
+      </main>
+
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Créer une boutique"
+        description="Votre boutique sera prête immédiatement avec un essai gratuit."
+        size="sm"
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <Field label="Nom de la boutique" required>
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex : Boutique Tanjona" required />
+          </Field>
+          <Field label="Ville">
+            <Input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="Antananarivo" />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Pays">
+              <Select value={newCountry} onChange={(e) => setNewCountry(e.target.value)}>
+                <option value="MG">Madagascar</option>
+                <option value="FR">France</option>
+                <option value="CM">Cameroun</option>
+                <option value="CI">Côte d'Ivoire</option>
+                <option value="SN">Sénégal</option>
+                <option value="MU">Maurice</option>
+                <option value="US">États-Unis</option>
+              </Select>
+            </Field>
+            <Field label="Devise">
+              <Select value={newCurrency} onChange={(e) => setNewCurrency(e.target.value)}>
+                <option value="MGA">Ariary (MGA)</option>
+                <option value="EUR">Euro (EUR)</option>
+                <option value="USD">Dollar (USD)</option>
+              </Select>
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Annuler</Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Création...' : 'Créer la boutique'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
