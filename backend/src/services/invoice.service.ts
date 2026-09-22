@@ -426,7 +426,12 @@ function serializeInvoice(inv: {
     paymentMethod: inv.paymentMethod,
     notes: inv.notes,
     createdAt: inv.createdAt,
-    customer: inv.customer,
+    customer: inv.customer
+      ? (() => {
+          const c = inv.customer as { id: string; firstName?: string | null; lastName?: string | null };
+          return { ...c, fullName: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() };
+        })()
+      : null,
     vehicle: inv.vehicle,
     workOrder: inv.workOrder,
     items: (inv.items as Array<{
