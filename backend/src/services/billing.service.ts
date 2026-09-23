@@ -104,7 +104,7 @@ export async function refreshOrder(storeId: string, orderId: string) {
 
   const updated = await prisma.paymentOrder.update({
     where: { id: order.id },
-    data: { status: dbStatus, paidAt: dbStatus === 'PAID' ? new Date() : undefined },
+    data: { status: dbStatus, paidAt: dbStatus === 'PAID' ? new Date() : undefined, url: info.url },
     include: { plan: true },
   });
 
@@ -138,7 +138,7 @@ export async function handleWebhook(body: Record<string, unknown>) {
 
   await prisma.paymentOrder.update({
     where: { id: order.id },
-    data: { status: dbStatus, paidAt: dbStatus === 'PAID' ? new Date() : undefined },
+    data: { status: dbStatus, paidAt: dbStatus === 'PAID' ? new Date() : undefined, url: info.url },
   });
 
   return { handled: true };

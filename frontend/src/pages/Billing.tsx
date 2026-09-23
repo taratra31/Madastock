@@ -94,10 +94,19 @@ export default function Billing() {
   const refreshMutation = useMutation({
     mutationFn: async (orderId: string) => {
       const res = await api.post(`/billing/${orderId}/refresh`);
-      return res.data;
+      return res.data as {
+        order: { id: string; status: string; url: string | null };
+      };
     },
-    onSuccess: () => {
-      toast.success('Statut vérifié.');
+    onSuccess: (data) => {
+      if (data.order.status === 'PENDING' || data.order.status === 'INCOMPLETE') {
+        if (data.order.url) {
+          window.open(data.order.url, '_blank', 'noopener');
+          toast.info('Page de paiement (lien à jour) ouverte. Si elle ne se charge pas, réessayez.');
+        }
+      } else if (data.order.status === 'PAID') {
+        toast.success('Paiement confirmé, votre offre est activée !');
+      }
       queryClient.invalidateQueries({ queryKey: ['billing'] });
     },
     onError: () => toast.error('Vérification impossible. Réessayez.'),
@@ -220,14 +229,19 @@ export default function Billing() {
                         {statusLabel[order.status] ?? order.status}
                       </Badge>
                       {(order.status === 'PENDING' || order.status === 'INCOMPLETE') && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => refreshMutation.mutate(order.id)}
-                          disabled={isMutating}
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" /> Vérifier
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => refreshMutation.mutate(order.id)}
+                            disabled={isMutating}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" /> Vérifier
+                          </Button>
+                          <p className="text-[11px] text-slate-400">
+                            Le lien expire : « Vérifier » en génère un à jour.
+                          </p>
+                        </>
                       )}
                     </div>
                   ))}
