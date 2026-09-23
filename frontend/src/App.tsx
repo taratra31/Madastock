@@ -19,6 +19,7 @@ import Garage from './pages/Garage';
 import Leads from './pages/Leads';
 import Interactions from './pages/Interactions';
 import Reminders from './pages/Reminders';
+import Billing from './pages/Billing';
 import AppLayout from './layouts/AppLayout';
 
 function App() {
@@ -45,6 +46,7 @@ function App() {
           <Route path="/leads" element={<Leads />} />
           <Route path="/interactions" element={<Interactions />} />
           <Route path="/reminders" element={<Reminders />} />
+          <Route path="/billing" element={<Billing />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

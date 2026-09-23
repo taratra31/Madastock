@@ -22,6 +22,7 @@ import {
   Target,
   MessageSquare,
   Bell,
+  CreditCard,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
@@ -68,7 +69,10 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   },
   {
     title: 'Finances',
-    items: [{ label: 'Devis & Factures', to: '/invoices', icon: FileText }],
+    items: [
+      { label: 'Devis & Factures', to: '/invoices', icon: FileText },
+      { label: 'Abonnement', to: '/billing', icon: CreditCard },
+    ],
   },
   {
     title: 'Paramètres',
