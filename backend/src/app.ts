@@ -31,6 +31,15 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+
+// Webhook Ariari : le body BRUT est reçu via express.raw() (aucune signature côté Ariari,
+// le statut est revalidé par relecture de l'API). Registré AVANT express.json().
+app.post(
+  '/api/webhooks/ariari',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  billingController.ariariWebhook
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -64,7 +73,6 @@ app.use('/api/v1/interactions', interactionRoutes);
 app.use('/api/v1/reminders', reminderRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/sales', saleRoutes);
-app.post('/api/v1/billing/webhook', billingController.webhook);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/garage', garageRoutes);
 

@@ -11,9 +11,10 @@ export const getBilling = asyncHandler(async (req: Request, res: Response) => {
 
 export const createCheckout = asyncHandler(async (req: Request, res: Response) => {
   if (!req.store) throw badRequest('Contexte boutique manquant');
+  if (!req.user) throw badRequest('Utilisateur manquant');
   const planId = req.body.planId as string | undefined;
   if (!planId) throw badRequest('planId requis');
-  const result = await billingService.createCheckout(req.store.id, planId);
+  const result = await billingService.createCheckout(req.store.id, req.user.id, planId);
   res.json(result);
 });
 
@@ -23,7 +24,21 @@ export const refreshOrder = asyncHandler(async (req: Request, res: Response) => 
   res.json(result);
 });
 
-export const webhook = asyncHandler(async (req: Request, res: Response) => {
-  const result = await billingService.handleWebhook(req.body ?? {});
-  res.json({ ok: true, ...result });
+export const getPaymentStatus = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.store) throw badRequest('Contexte boutique manquant');
+  const reference = req.params.reference as string | undefined;
+  if (!reference) throw badRequest('reference requis');
+  // La route ne fait pas confiance au client : on force storeId depuis le middleware auth.
+  const result = await billingService.getPaymentStatusInfo(req.store.id, reference);
+  res.json(result);
+});
+
+/**
+ * Webhook Ariari — reçoit le body BRUT (Buffer) grâce à express.raw() monté sur la route.
+ * Pas de signature côté Ariari : le statut est revalidé par relecture de l'API.
+ */
+export const ariariWebhook = asyncHandler(async (req: Request, res: Response) => {
+  const rawBody = req.body as Buffer;
+  const result = await billingService.handleWebhook(rawBody);
+  res.json({ ok: true, handled: result.handled });
 });

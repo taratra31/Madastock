@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: madastock-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: madastock
+      POSTGRES_PASSWORD: madastock
+      POSTGRES_DB: madastock
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U madastock -d madastock"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - madastock-net
+
+  backend:
+    build: ./backend
+    container_name: madastock-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://madastock:madastock@postgres:5432/madastock?schema=public
+      JWT_SECRET: change-me-in-production
+      JWT_EXPIRES_IN: 7d
+      NODE_ENV: production
+      PORT: 5000
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "5000:5000"
+    networks:
+      - madastock-net
+
+  frontend:
+    build: ./frontend
+    container_name: madastock-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - madastock-net
+
+networks:
+  madastock-net:
+    driver: bridge
+
+volumes:
+  postgres-data:

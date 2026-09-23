@@ -96,12 +96,14 @@ async function pickSellWarehouse(storeId: string, warehouseId?: string) {
 async function nextReceiptNumber(storeId: string, tx?: any) {
   const client = tx ?? prisma;
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const store = await client.store.findUnique({ where: { id: storeId }, select: { id: true } });
+  const suffix = store ? store.id.replace(/-/g, '').slice(-4).toUpperCase() : 'MADA';
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const count = await client.sale.count({
     where: { storeId, createdAt: { gte: start } },
   });
-  return `V-${ymd}-${String(count + 1).padStart(4, '0')}`;
+  return `V-${suffix}-${ymd}-${String(count + 1).padStart(4, '0')}`;
 }
 
 type Tx = {
@@ -109,6 +111,7 @@ type Tx = {
   saleItem: any;
   stock: any;
   stockMovement: any;
+  product: any;
 };
 
 export async function createSale(storeId: string, userId: string, input: CreateSaleInput) {
@@ -151,27 +154,35 @@ export async function createSale(storeId: string, userId: string, input: CreateS
     for (const it of input.items) {
       if (!it.productId) continue;
 
-      const stock = await tx.stock.findFirst({
-        where: {
-          storeId,
-          warehouseId: warehouse.id,
-          productId: it.productId,
-          variantId: it.variantId || null,
-        },
-      });
+      const [stock, product] = await Promise.all([
+        tx.stock.findFirst({
+          where: {
+            storeId,
+            warehouseId: warehouse.id,
+            productId: it.productId,
+            variantId: it.variantId || null,
+          },
+        }),
+        tx.product.findUnique({
+          where: { id: it.productId },
+          select: { costPriceAr: true },
+        }),
+      ]);
       if (!stock) throw badRequest('Stock introuvable pour un des articles');
       if (Number(stock.quantityAr) < Number(it.quantity)) {
         throw badRequest('Stock insuffisant pour un des articles');
       }
 
+      const costPriceAr = it.costPrice ?? Number(product?.costPriceAr ?? 0);
+
       await tx.saleItem.create({
         data: {
           saleId: created.id,
-          storeId,
           productId: it.productId,
           variantId: it.variantId || null,
           quantityAr: it.quantity,
           unitPriceAr: it.unitPrice,
+          costPriceAr,
           discountAr: it.discount ?? 0,
           taxAr: it.tax ?? 0,
           lineTotalAr: Number(it.unitPrice) * Number(it.quantity) - Number(it.discount ?? 0) + Number(it.tax ?? 0),

@@ -129,7 +129,7 @@ model Store {
   interactions     Interaction[]
   reminders        Reminder[]
   invoices         Invoice[]
-  paymentOrders    PaymentOrder[]
+  payments         Payment[]
 
   @@index([name])
   @@map("stores")
@@ -163,6 +163,7 @@ model Plan {
   description      String
   priceAr          Decimal      
   billingCycle     String @default("MONTHLY")
+  durationMonths   Int          @default(1)
   maxUsers         Int          @default(1)
   maxProducts      Int          @default(50)
   maxWarehouses    Int          @default(1)
@@ -174,7 +175,7 @@ model Plan {
   updatedAt        DateTime     @updatedAt
 
   subscriptions Subscription[]
-  paymentOrders  PaymentOrder[]
+  payments       Payment[]
 
   @@map("plans")
 }
@@ -202,24 +203,29 @@ model Subscription {
   @@map("subscriptions")
 }
 
-model PaymentOrder {
-  id        String   @id @default(uuid())
-  storeId   String
-  planId    String
-  amountAr  Decimal
-  ariaryId  String   @unique
-  url       String?
-  status    String   @default("PENDING")
-  paidAt    DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Payment {
+  id                 String    @id @default(uuid())
+  storeId            String
+  planId             String
+  amountAr           Decimal
+  merchantReference  String    @unique
+  provider           String?
+  currency           String    @default("MGA")
+  providerReference  String?   @unique
+  url                String?
+  status             String    @default("PENDING")
+  rawResponse        String?
+  paidAt             DateTime?
+  failedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   plan  Plan  @relation(fields: [planId], references: [id])
 
   @@index([storeId])
   @@index([status])
-  @@map("payment_orders")
+  @@map("payments")
 }
 
 // ============================================================

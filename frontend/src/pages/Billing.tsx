@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Crown, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Crown, CheckCircle2, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { formatNumber, formatDate } from '../lib/format';
@@ -21,6 +21,16 @@ interface Plan {
   featuresJson: string;
 }
 
+interface Order {
+  id: string;
+  status: string;
+  amountAr: string | number;
+  provider: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  plan: Plan;
+}
+
 interface BillingData {
   subscription: {
     id: string;
@@ -32,33 +42,32 @@ interface BillingData {
     plan: Plan;
   } | null;
   plans: Plan[];
-  orders: {
-    id: string;
-    status: string;
-    amountAr: string | number;
-    createdAt: string;
-    paidAt: string | null;
-    plan: Plan;
-  }[];
+  orders: Order[];
 }
 
 const badge: Record<string, string> = {
   PENDING: 'bg-amber-50 text-amber-700',
-  INCOMPLETE: 'bg-blue-50 text-blue-700',
-  PAID: 'bg-emerald-50 text-emerald-700',
+  SUCCESS: 'bg-emerald-50 text-emerald-700',
   FAILED: 'bg-red-50 text-red-700',
 };
 
 const statusLabel: Record<string, string> = {
   PENDING: 'En attente',
-  INCOMPLETE: 'Paiement partiel',
-  PAID: 'Payé',
+  SUCCESS: 'Payé',
   FAILED: 'Échec',
+};
+
+const providerLabel: Record<string, string> = {
+  ARIARI: 'Mobile Money (Ariari)',
+  MVOLA: 'MVola',
+  ORANGE_MONEY: 'Orange Money',
+  AIRTEL_MONEY: 'Airtel Money',
 };
 
 export default function Billing() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const { data, isLoading, error } = useQuery<BillingData>({
     queryKey: ['billing'],
@@ -70,21 +79,59 @@ export default function Billing() {
 
   const currentPlanId = data?.subscription?.plan.id;
 
+  // Confirmation automatique au retour de la page de paiement (redirectSuccess / redirectFailure).
   useEffect(() => {
     const status = searchParams.get('status');
-    if (status === 'success') toast.success('Paiement effectué, votre offre est activée !');
-    if (status === 'failed') toast.error('Paiement annulé ou échoué. Vous pouvez réessayer.');
-  }, [searchParams]);
+    const ref = searchParams.get('ref');
+    if (!ref) return;
+
+    const finalStatus = status === 'success' ? 'SUCCESS' : status === 'failed' ? 'FAILED' : null;
+
+    const poll = async () => {
+      setIsConfirming(true);
+      if (finalStatus === 'FAILED') {
+        toast.error('Paiement annulé ou échoué. Vous pouvez réessayer.');
+        setIsConfirming(false);
+        return;
+      }
+      let attempts = 0;
+      const timer = setInterval(async () => {
+        attempts += 1;
+        try {
+          const res = await api.get(`/billing/reference/${encodeURIComponent(ref)}/status`);
+          const st = res.data.paymentStatus as string;
+          if (st === 'SUCCESS') {
+            clearInterval(timer);
+            setIsConfirming(false);
+            toast.success('Paiement confirmé. Votre abonnement est maintenant actif.');
+            queryClient.invalidateQueries({ queryKey: ['billing'] });
+          } else if (st === 'FAILED') {
+            clearInterval(timer);
+            setIsConfirming(false);
+            toast.error('Paiement échoué. Vous pouvez réessayer.');
+          }
+        } catch {
+          // erreur passagère : on continue à interroger
+        }
+        if (attempts >= 30) {
+          clearInterval(timer);
+          setIsConfirming(false);
+          toast.info('La confirmation peut prendre quelques instants. Utilisez « Vérifier » pour actualiser.');
+        }
+      }, 2000);
+    };
+    void poll();
+  }, [searchParams, queryClient]);
 
   const checkoutMutation = useMutation({
     mutationFn: async (planId: string) => {
       const res = await api.post('/billing/checkout', { planId });
-      return res.data as { orderId: string; url: string | null };
+      return res.data as { reference: string; orderId: string; paymentLink: string | null };
     },
     onSuccess: (data) => {
-      if (data.url) {
-        window.open(data.url, '_blank', 'noopener');
-        toast.info('Page de paiement ouverte dans un nouvel onglet.');
+      if (data.paymentLink) {
+        toast.info('Redirection vers la page de paiement…');
+        window.location.href = data.paymentLink;
       }
       queryClient.invalidateQueries({ queryKey: ['billing'] });
     },
@@ -99,13 +146,15 @@ export default function Billing() {
       };
     },
     onSuccess: (data) => {
-      if (data.order.status === 'PENDING' || data.order.status === 'INCOMPLETE') {
+      if (data.order.status === 'PENDING') {
         if (data.order.url) {
           window.open(data.order.url, '_blank', 'noopener');
-          toast.info('Page de paiement (lien à jour) ouverte. Si elle ne se charge pas, réessayez.');
+          toast.info('Réouverture du lien de paiement.');
         }
-      } else if (data.order.status === 'PAID') {
+      } else if (data.order.status === 'SUCCESS') {
         toast.success('Paiement confirmé, votre offre est activée !');
+      } else if (data.order.status === 'FAILED') {
+        toast.error('Ce paiement a échoué. Vous pouvez créer une nouvelle commande.');
       }
       queryClient.invalidateQueries({ queryKey: ['billing'] });
     },
@@ -122,6 +171,13 @@ export default function Billing() {
       {!isLoading && error && <ErrorMessage message="Impossible de charger l'abonnement." />}
       {!isLoading && !error && data && (
         <>
+          {isConfirming && (
+            <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Confirmation de votre paiement en cours…
+            </div>
+          )}
+
           {data.subscription && (
             <Card>
               <div className="flex flex-wrap items-center gap-4">
@@ -179,7 +235,7 @@ export default function Billing() {
                     </p>
                     <div className="mt-4">
                       <Button
-                        disabled={isCurrent || free || isMutating}
+                        disabled={isCurrent || free || isMutating || isConfirming}
                         onClick={() => checkoutMutation.mutate(plan.id)}
                       >
                         {isCurrent
@@ -198,9 +254,13 @@ export default function Billing() {
                 );
               })}
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Paiement sécurisé via ariary.mg (MVola, Orange Money, Airtel Money). Après paiement, votre boutique
-              sera mise à jour automatiquement.
+          </section>
+
+          <section>
+            <h2 className="text-base font-bold text-dark-900 mb-2">Paiement</h2>
+            <p className="text-sm text-slate-500">
+              Vous serez redirigé vers la page de paiement sécurisée (MVola, Orange Money, Airtel Money). Dès que le
+              paiement est validé, votre abonnement est activé automatiquement.
             </p>
           </section>
 
@@ -223,12 +283,13 @@ export default function Billing() {
                         <p className="text-xs text-slate-500">
                           {formatDate(order.createdAt)}
                           {order.paidAt && ` · Payé le ${formatDate(order.paidAt)}`}
+                          {order.provider && ` · ${providerLabel[order.provider] ?? order.provider}`}
                         </p>
                       </div>
                       <Badge className={badge[order.status] ?? 'bg-slate-100 text-slate-600'}>
                         {statusLabel[order.status] ?? order.status}
                       </Badge>
-                      {(order.status === 'PENDING' || order.status === 'INCOMPLETE') && (
+                      {order.status === 'PENDING' && (
                         <>
                           <Button
                             variant="outline"
@@ -239,7 +300,7 @@ export default function Billing() {
                             <RefreshCw className="w-3.5 h-3.5" /> Vérifier
                           </Button>
                           <p className="text-[11px] text-slate-400">
-                            Le lien expire : « Vérifier » en génère un à jour.
+                            Paiement pas encore reçu : vérifiez votre téléphone puis « Vérifier ».
                           </p>
                         </>
                       )}

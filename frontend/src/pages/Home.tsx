@@ -1,6 +1,8 @@
-import { useState, type ElementType } from 'react';
+import { useEffect, useState, type ElementType } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { formatNumber } from '../lib/format';
+import api from '../lib/api';
 import {
   Menu,
   X,
@@ -141,35 +143,100 @@ const faqs: Faq[] = [
   },
 ];
 
-const prices = [
-  {
-    name: 'Gratuit',
-    price: '0 Ar',
-    period: 'pour toujours',
-    description: 'Pour démarrer en douceur.',
-    features: ['1 boutique', 'Jusqu\u2019à 50 produits', 'Ventes & caisse', 'Gestion de stock basique', 'Support communautaire'],
-    highlighted: false,
-    cta: 'Commencer gratuitement',
-  },
-  {
-    name: 'Pro',
-    price: '25 000 Ar',
-    period: '/ mois',
-    description: 'Pour les commerçants qui veulent grandir.',
-    features: ['Boutiques illimitées', 'Produits illimités', 'Clients & fidélité', 'Fournisseurs & achats', 'Rapports avancés', 'Multi-utilisateurs & rôles', 'Support prioritaire'],
-    highlighted: true,
-    cta: 'Choisir Pro',
-  },
-  {
-    name: 'Entreprise',
-    price: 'Sur devis',
-    period: 'contactez-nous',
-    description: 'Pour les réseaux et les besoins sur mesure.',
-    features: ['Tout le plan Pro', 'API & intégrations', 'Formation dédiée', 'Superviseur / gestionnaire dédié', 'Contrat personnalisé'],
-    highlighted: false,
-    cta: 'Nous contacter',
-  },
+interface PublicPlan {
+  id: string;
+  name: string;
+  description: string;
+  priceAr: string | number;
+  billingCycle: string;
+  durationMonths: number;
+  maxUsers: number;
+  maxProducts: number;
+  maxWarehouses: number;
+  maxCustomers: number;
+  maxSalesPerMonth: number | null;
+  features: Record<string, boolean>;
+}
+
+interface LiveStats {
+  store: { name: string; slug: string; city: string; country: string };
+  today: { revenueAr: number; count: number; deltaPct: number };
+  counts: { sales: number; products: number; customers: number };
+  week: { day: string; revenueAr: number; count: number }[];
+  recentSales: { receipt: string; productName: string | null; amountAr: number; at: string }[];
+}
+
+interface PriceCard {
+  key: string;
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  highlighted: boolean;
+  cta: string;
+  ctaHref: string;
+}
+
+const featureLabels: { key: string; label: string }[] = [
+  { key: 'pos', label: 'Caisse & ventes' },
+  { key: 'stock', label: 'Gestion de stock' },
+  { key: 'reports', label: 'Rapports & statistiques' },
+  { key: 'loyalty', label: 'Clients & fidélité' },
+  { key: 'suppliers', label: 'Fournisseurs & achats' },
+  { key: 'multiWarehouse', label: 'Multi-entrepôts' },
+  { key: 'cashier', label: 'Comptes caissiers' },
+  { key: 'accounting', label: 'Comptabilité avancée' },
+  { key: 'api', label: 'API & intégrations' },
 ];
+
+const planDisplayName: Record<string, string> = {
+  FREE: 'Gratuit',
+  STARTER: 'Starter',
+  BUSINESS: 'Business',
+  PRO: 'Pro',
+};
+
+function planToCard(plan: PublicPlan, popular: boolean): PriceCard {
+  const features: string[] = [];
+  for (const { key, label } of featureLabels) {
+    if (plan.features[key]) features.push(label);
+  }
+  const users = plan.maxUsers > 1 ? `Jusqu\u2019à ${plan.maxUsers} utilisateurs` : '1 utilisateur';
+  const products = `Jusqu\u2019à ${plan.maxProducts} produits`;
+  const warehouses = plan.maxWarehouses > 1 ? `Jusqu\u2019à ${plan.maxWarehouses} entrepôts` : '1 entrepôt';
+  const customers = plan.maxCustomers > 1 ? `Jusqu\u2019à ${plan.maxCustomers} clients` : 'Clients';
+  features.push(users);
+  features.push(products);
+  features.push(warehouses);
+  features.push(customers);
+  if (plan.maxSalesPerMonth) features.push(`Jusqu\u2019à ${plan.maxSalesPerMonth} ventes / mois`);
+
+  const free = Number(plan.priceAr) <= 0;
+  return {
+    key: plan.id,
+    name: planDisplayName[plan.name] ?? plan.name,
+    price: free ? '0 Ar' : `${formatNumber(plan.priceAr)} Ar`,
+    period: free ? 'pour toujours' : '/ mois',
+    description: plan.description,
+    features,
+    highlighted: popular,
+    cta: free ? 'Commencer gratuitement' : `Choisir ${planDisplayName[plan.name] ?? plan.name}`,
+    ctaHref: '/register',
+  };
+}
+
+const enterpriseCard: PriceCard = {
+  key: 'enterprise',
+  name: 'Entreprise',
+  price: 'Sur devis',
+  period: 'contactez-nous',
+  description: 'Pour les réseaux et les besoins sur mesure.',
+  features: ['Tout le plan Pro', 'API & intégrations', 'Formation dédiée', 'Superviseur / gestionnaire dédié', 'Contrat personnalisé'],
+  highlighted: false,
+  cta: 'Nous contacter',
+  ctaHref: 'mailto:contact@madastock.mg',
+};
 
 const mockSales = [
   { receipt: 'V-2026-0841', name: 'Riz 25 kg', amount: '82 000 Ar' },
@@ -182,6 +249,28 @@ export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [priceCards, setPriceCards] = useState<PriceCard[]>([]);
+  const [live, setLive] = useState<LiveStats | null>(null);
+
+  useEffect(() => {
+    api
+      .get<PublicPlan[]>('/public/plans')
+      .then((res) => {
+        const plans = res.data;
+        const firstPaid = plans.find((p) => Number(p.priceAr) > 0);
+        setPriceCards([...plans.map((p) => planToCard(p, p.id === firstPaid?.id)), enterpriseCard]);
+      })
+      .catch(() => {
+        setPriceCards([enterpriseCard]);
+      });
+
+    api
+      .get<LiveStats>('/public/live/mounaya')
+      .then((res) => setLive(res.data))
+      .catch(() => {
+        setLive(null);
+      });
+  }, []);
 
   if (isAuthenticated && !isLoading) return <Navigate to="/dashboard" replace />;
 
@@ -333,18 +422,25 @@ export default function Home() {
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                   <div>
                     <p className="text-xs text-slate-400 font-medium">Chiffre d’affaires aujourd’hui</p>
-                    <p className="text-2xl font-bold text-dark-900 mt-0.5">1 284 500 Ar</p>
+                    <p className="text-2xl font-bold text-dark-900 mt-0.5">
+                      {live ? `${formatNumber(live.today.revenueAr)} Ar` : '1 284 500 Ar'}
+                    </p>
                   </div>
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
-                    <span className="text-green-600">▲</span> +12,4%
+                  <span
+                    className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                      (live?.today.deltaPct ?? 0) >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'
+                    }`}
+                  >
+                    <span>{(live?.today.deltaPct ?? 0) >= 0 ? '▲' : '▼'}</span>
+                    {live ? `${live.today.deltaPct >= 0 ? '+' : ''}${live.today.deltaPct}%` : '+12,4%'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 mt-4">
                   {[
-                    { label: 'Ventes', value: '48' },
-                    { label: 'Produits', value: '342' },
-                    { label: 'Clients', value: '86' },
+                    { label: 'Ventes', value: live ? formatNumber(live.counts.sales) : '48' },
+                    { label: 'Produits', value: live ? formatNumber(live.counts.products) : '342' },
+                    { label: 'Clients', value: live ? formatNumber(live.counts.customers) : '86' },
                   ].map((s) => (
                     <div key={s.label} className="bg-slate-50 rounded-xl p-3 text-center">
                       <p className="text-lg font-bold text-dark-900">{s.value}</p>
@@ -354,23 +450,43 @@ export default function Home() {
                 </div>
 
                 <div className="mt-4 flex items-end gap-2 h-20 px-1">
-                  {[38, 55, 42, 70, 58, 82, 64].map((h, i) => (
-                    <div key={i} className="flex-1 flex flex-col justify-end">
-                      <div
-                        className={`rounded-t-md ${i === 5 ? 'bg-green-600' : 'bg-green-100'}`}
-                        style={{ height: `${h}%` }}
-                      />
-                    </div>
-                  ))}
+                  {(live?.week ?? []).length > 0
+                    ? (() => {
+                        const max = Math.max(...live!.week.map((d) => d.revenueAr), 1);
+                        return live!.week.map((d, i) => (
+                          <div key={i} className="flex-1 flex flex-col justify-end">
+                            <div
+                              className={`rounded-t-md ${i === 6 ? 'bg-green-600' : 'bg-green-100'}`}
+                              style={{ height: `${Math.max(8, Math.round((d.revenueAr / max) * 100))}%` }}
+                            />
+                          </div>
+                        ));
+                      })()
+                    : [38, 55, 42, 70, 58, 82, 64].map((h, i) => (
+                        <div key={i} className="flex-1 flex flex-col justify-end">
+                          <div
+                            className={`rounded-t-md ${i === 5 ? 'bg-green-600' : 'bg-green-100'}`}
+                            style={{ height: `${h}%` }}
+                          />
+                        </div>
+                      ))}
                 </div>
                 <div className="mt-1.5 flex justify-between px-1 text-[10px] text-slate-400">
-                  {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
-                    <span key={i} className="flex-1 text-center">{d}</span>
+                  {(live?.week ?? []).map((d, i) => (
+                    <span key={i} className="flex-1 text-center">{d.day}</span>
                   ))}
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  {mockSales.map((s) => (
+                  {(live?.recentSales.length
+                    ? live.recentSales.map((s) => ({
+                        key: s.receipt,
+                        name: s.productName ?? 'Vente',
+                        receipt: s.receipt,
+                        amount: `${formatNumber(s.amountAr)} Ar`,
+                      }))
+                    : mockSales
+                  ).map((s) => (
                     <div key={s.receipt} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -522,48 +638,74 @@ export default function Home() {
               Commencez gratuitement, puis choisissez le plan adapté à la taille de votre activité.
             </p>
           </div>
-          <div className="mt-14 grid md:grid-cols-3 gap-6 items-start">
-            {prices.map((p) => (
-              <div
-                key={p.name}
-                className={`relative rounded-2xl p-7 ${
-                  p.highlighted
-                    ? 'bg-dark-900 text-white shadow-2xl shadow-dark-900/30 md:-mt-4 md:mb-4'
-                    : 'bg-white border border-slate-200'
-                }`}
-              >
-                {p.highlighted && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-dark-900 text-xs font-bold px-3 py-1 rounded-full">
-                    LE PLUS POPULAIRE
-                  </span>
-                )}
-                <h3 className={`font-semibold ${p.highlighted ? 'text-green-400' : 'text-dark-900'}`}>{p.name}</h3>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold">{p.price}</span>
-                  <span className={`text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.period}</span>
+          <div className="mt-14 grid sm:grid-cols-2 xl:grid-cols-5 gap-6 items-start">
+            {(priceCards.length > 0 ? priceCards : Array.from({ length: 5 }, () => null)).map((p, i) =>
+              !p ? (
+                <div key={`skeleton-${i}`} className="rounded-2xl bg-white border border-slate-200 p-7 animate-pulse">
+                  <div className="h-4 w-20 bg-slate-200 rounded" />
+                  <div className="mt-4 h-8 w-28 bg-slate-200 rounded" />
+                  <div className="mt-4 space-y-3">
+                    <div className="h-3 bg-slate-200 rounded" />
+                    <div className="h-3 bg-slate-200 rounded" />
+                    <div className="h-3 bg-slate-200 rounded" />
+                  </div>
                 </div>
-                <p className={`mt-2 text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.description}</p>
-                <ul className="mt-6 space-y-3">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${p.highlighted ? 'text-green-400' : 'text-green-600'}`} />
-                      <span className={p.highlighted ? 'text-slate-200' : 'text-slate-600'}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/register"
-                  className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
+              ) : (
+                <div
+                  key={p.key}
+                  className={`relative rounded-2xl p-7 ${
                     p.highlighted
-                      ? 'bg-green-500 hover:bg-green-400 text-dark-900'
-                      : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
+                      ? 'bg-dark-900 text-white shadow-2xl shadow-dark-900/30 md:-mt-4 md:mb-4'
+                      : 'bg-white border border-slate-200'
                   }`}
                 >
-                  {p.cta}
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            ))}
+                  {p.highlighted && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-dark-900 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                      LE PLUS POPULAIRE
+                    </span>
+                  )}
+                  <h3 className={`font-semibold ${p.highlighted ? 'text-green-400' : 'text-dark-900'}`}>{p.name}</h3>
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-3xl font-extrabold">{p.price}</span>
+                    <span className={`text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.period}</span>
+                  </div>
+                  <p className={`mt-2 text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.description}</p>
+                  <ul className="mt-6 space-y-3">
+                    {p.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-sm">
+                        <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${p.highlighted ? 'text-green-400' : 'text-green-600'}`} />
+                        <span className={p.highlighted ? 'text-slate-200' : 'text-slate-600'}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {(p.ctaHref.startsWith('mailto:') ? (
+                    <a
+                      href={p.ctaHref}
+                      className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
+                        p.highlighted
+                          ? 'bg-green-500 hover:bg-green-400 text-dark-900'
+                          : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
+                      }`}
+                    >
+                      {p.cta}
+                      <ArrowRight className="w-4 h-4" />
+                    </a>
+                  ) : (
+                    <Link
+                      to={p.ctaHref}
+                      className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
+                        p.highlighted
+                          ? 'bg-green-500 hover:bg-green-400 text-dark-900'
+                          : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
+                      }`}
+                    >
+                      {p.cta}
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  ))}
+                </div>
+              )
+            )}
           </div>
         </div>
       </section>
