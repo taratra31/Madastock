@@ -27,6 +27,9 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+        <div className="flex justify-center mb-4">
+          <img src="/logo-madastock.png" alt="MadaStock" className="w-20 h-20 rounded-2xl object-contain border border-slate-200 p-1" />
+        </div>
         <h1 className="text-2xl font-bold text-center mb-6">Connexion à MadaStock</h1>
 
         {authError && (

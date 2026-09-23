@@ -2,7 +2,6 @@ import { useState, type ElementType } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import {
-  Store,
   Menu,
   X,
   ShoppingCart,
@@ -197,8 +196,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <a href="#" className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-md shadow-green-500/20">
-                <Store className="w-5 h-5 text-white" />
+              <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm">
+                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain" />
               </span>
               <span className="text-xl font-bold tracking-tight text-dark-900">
                 Mada<span className="text-green-600">Stock</span>
@@ -637,8 +636,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid gap-10 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center">
-                <Store className="w-5 h-5 text-white" />
+              <span className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center overflow-hidden">
+                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain" />
               </span>
               <span className="text-xl font-bold tracking-tight text-white">
                 Mada<span className="text-green-500">Stock</span>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Store,
   LayoutDashboard,
   Package,
   Tags,
@@ -135,8 +134,8 @@ export default function AppLayout() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-5 h-14 border-b border-dark-800/80 shrink-0">
         <Link to="/dashboard" className="flex items-center gap-2.5">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-            <Store className="w-5 h-5 text-white" />
+          <span className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden ring-1 ring-dark-800">
+            <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain" />
           </span>
           <span className="leading-tight">
             <span className="block text-[17px] font-bold tracking-tight text-white">
