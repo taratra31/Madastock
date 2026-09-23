@@ -528,7 +528,7 @@ export default function Billing() {
                 Une question sur votre abonnement ou un paiement ? Notre équipe vous répond sous 24 h.
               </p>
               <a
-                href="mailto:contact@madastock.mg?subject=Question%20sur%20mon%20abonnement"
+                href="mailto:madaorganisation@gmail.com?subject=Question%20sur%20mon%20abonnement"
                 className="sm:ml-auto text-sm font-semibold text-green-700 hover:text-green-800 inline-flex items-center gap-1"
               >
                 Nous contacter <ArrowUpRight className="w-4 h-4" />

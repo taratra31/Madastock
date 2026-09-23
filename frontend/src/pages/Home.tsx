@@ -235,7 +235,7 @@ const enterpriseCard: PriceCard = {
   features: ['Tout le plan Pro', 'API & intégrations', 'Formation dédiée', 'Superviseur / gestionnaire dédié', 'Contrat personnalisé'],
   highlighted: false,
   cta: 'Nous contacter',
-  ctaHref: 'mailto:contact@madastock.mg',
+  ctaHref: 'mailto:madaorganisation@gmail.com',
 };
 
 const mockSales = [
@@ -811,11 +811,11 @@ export default function Home() {
             <ul className="mt-4 space-y-2.5 text-sm">
               <li className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-green-500" />
-                +261 34 00 000 00
+                +261 32 63 21 784
               </li>
               <li className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-green-500" />
-                contact@madastock.mg
+                madaorganisation@gmail.com
               </li>
               <li className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-green-500" />
