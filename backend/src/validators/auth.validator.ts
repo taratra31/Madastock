@@ -24,5 +24,16 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Le mot de passe est requis'),
 });
 
+export const verifyEmailSchema = z.object({
+  email: emailSchema,
+  code: z.string().regex(/^\d{6}$/, 'Le code doit contenir 6 chiffres'),
+});
+
+export const resendCodeSchema = z.object({
+  email: emailSchema,
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendCodeInput = z.infer<typeof resendCodeSchema>;

@@ -15,6 +15,12 @@ const envSchema = z.object({
   ARIARI_WEBHOOK_URL: z.string().default(''),
   RATE_LIMIT_WINDOW_MS: z.string().default('900000').transform(Number),
   RATE_LIMIT_MAX: z.string().default('100').transform(Number),
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.string().default('587').transform(Number),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  MAIL_FROM: z.string().default('MadaStock <noreply@madastock.mg>'),
+  VERIFY_CODE_TTL_MINUTES: z.string().default('15').transform(Number),
 });
 
 export type Env = z.infer<typeof envSchema>;

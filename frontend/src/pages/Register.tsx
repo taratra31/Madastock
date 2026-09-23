@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 
 export default function Register() {
   const { register, isAuthenticated, isLoading, authError } = useAuth();
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -22,7 +23,12 @@ export default function Register() {
     }
     setSubmitting(true);
     try {
-      await register({ email, password, fullName, phone: phone || undefined });
+      const result = await register({ email, password, fullName, phone: phone || undefined });
+      if (result.requiresVerification) {
+        toast.success('Compte créé. Un code de vérification a été envoyé par e-mail.');
+        navigate('/verify-email', { replace: true });
+        return;
+      }
       toast.success('Compte créé avec succès');
     } catch {
       toast.error(authError ?? "Erreur lors de l'inscription");

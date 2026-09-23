@@ -22,4 +22,6 @@ export const notFound = (message = 'Introuvable') => new HttpError(404, message)
 
 export const conflict = (message = 'Conflit') => new HttpError(409, message);
 
+export const tooManyRequests = (message = 'Trop de requêtes') => new HttpError(429, message);
+
 export const badGateway = (message = 'Service externe indisponible') => new HttpError(502, message);

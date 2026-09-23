@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 
 export default function Login() {
   const { login, isAuthenticated, isLoading, authError } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -15,7 +16,12 @@ export default function Login() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await login(email, password);
+      const result = await login(email, password);
+      if (result.requiresVerification) {
+        toast.info('Veuillez vérifier votre adresse e-mail pour continuer');
+        navigate('/verify-email', { replace: true });
+        return;
+      }
       toast.success('Connexion réussie');
     } catch {
       toast.error(authError ?? 'Erreur de connexion');
