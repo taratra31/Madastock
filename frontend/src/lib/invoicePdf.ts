@@ -59,13 +59,15 @@ export async function downloadInvoicePdf(invoice: InvoicePdfData, storeName?: st
   // --- Bandeau dégradé ---
   drawGradient(doc, 0, 0, PAGE_W, BAND_H, BRAND, BRAND2);
 
-  // Logo MadaStock (pastille blanche)
+  // Logo MadaStock (pastille blanche + image)
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(MM, 8, 12, 12, 2.5, 2.5, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(...BRAND);
-  doc.text('MS', MM + 6, 16, { align: 'center' });
+  if (!(await drawLogoImage(doc, MM, 8, 12))) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...BRAND);
+    doc.text('MS', MM + 6, 16, { align: 'center' });
+  }
 
   // Nom de la boutique + marque
   doc.setFont('helvetica', 'bold');
@@ -314,5 +316,23 @@ function drawGradient(doc: jsPDF, x: number, y: number, w: number, h: number, fr
     const b = Math.round(from[2] + (to[2] - from[2]) * t);
     doc.setFillColor(r, g, b);
     doc.rect(x, y + (h / steps) * i, w, h / steps + 0.1, 'F');
+  }
+}
+
+async function drawLogoImage(doc: jsPDF, x: number, y: number, size: number): Promise<boolean> {
+  try {
+    const res = await fetch('/logo-madastock.png');
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    doc.addImage(dataUrl, 'PNG', x, y, size, size);
+    return true;
+  } catch {
+    return false;
   }
 }
