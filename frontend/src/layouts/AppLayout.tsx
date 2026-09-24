@@ -163,7 +163,24 @@ export default function AppLayout() {
     return m?.role ?? '';
   }, [storeList, currentStore]);
 
-  const navSections = useMemo(() => navForSector(currentStore?.sector), [currentStore?.sector]);
+  const currentMembership = useMemo(
+    () => storeList.find((x) => x.store.id === currentStore?.id),
+    [storeList, currentStore],
+  );
+
+  const canManage = currentRole === 'OWNER' || currentRole === 'ADMIN' || currentMembership?.canManageAll === true;
+
+  const navSections = useMemo(() => {
+    const sections = navForSector(currentStore?.sector);
+    return sections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter(
+          (item) => !(item.to === '/settings' || item.to === '/billing') || canManage,
+        ),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [currentStore?.sector, canManage]);
 
   useEffect(() => setUserMenuOpen(false), [location.pathname]);
 
@@ -346,13 +363,15 @@ export default function AppLayout() {
                       <p className="text-sm font-semibold text-dark-900 truncate">{user?.fullName}</p>
                       <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                     </div>
-                    <Link
-                      to="/settings"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                    >
-                      Paramètres boutique
-                    </Link>
+                    {canManage && (
+                      <Link
+                        to="/settings"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                      >
+                        Paramètres boutique
+                      </Link>
+                    )}
                     <Link
                       to="/stores"
                       onClick={() => setUserMenuOpen(false)}

@@ -278,9 +278,29 @@ model User {
   performedInteractions Interaction[] @relation("InteractionPerformedBy")
   assignedReminders   Reminder[]     @relation("ReminderAssignedTo")
   createdInvoices     Invoice[]      @relation("InvoiceCreatedBy")
+  sessions            Session[]
 
   @@index([email])
   @@map("users")
+}
+
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String
+  userAgent  String?
+  ip         String?
+  expiresAt  DateTime
+  lastUsedAt DateTime? @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 model Store {

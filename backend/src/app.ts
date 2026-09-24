@@ -3,6 +3,7 @@ import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { HttpError } from './utils/httpError';
@@ -31,6 +32,7 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+app.use(cookieParser());
 
 // Webhook Ariari : le body BRUT est reçu via express.raw() (aucune signature côté Ariari,
 // le statut est revalidé par relecture de l'API). Registré AVANT express.json().

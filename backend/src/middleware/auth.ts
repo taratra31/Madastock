@@ -6,11 +6,17 @@ import { unauthorized } from '../utils/httpError';
 
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return next(unauthorized('Token manquant'));
+  let token: string | undefined;
+
+  if (header && header.startsWith('Bearer ')) {
+    token = header.slice('Bearer '.length);
+  } else {
+    token = req.cookies?.ms_access as string | undefined;
   }
 
-  const token = header.slice('Bearer '.length);
+  if (!token) {
+    return next(unauthorized('Token manquant'));
+  }
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as jwt.JwtPayload & JwtPayload;

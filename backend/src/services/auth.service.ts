@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { createHash, randomUUID } from 'crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { env } from '../config/env';
 import prisma from '../lib/prisma';
@@ -11,6 +12,11 @@ const BCRYPT_ROUNDS = 10;
 const CODE_TTL_MS = env.VERIFY_CODE_TTL_MINUTES * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60_000;
 
+export interface SessionMeta {
+  userAgent?: string;
+  ip?: string;
+}
+
 const SAFE_USER_SELECT = {
   id: true,
   email: true,
@@ -18,6 +24,7 @@ const SAFE_USER_SELECT = {
   phone: true,
   avatarUrl: true,
   isSuperAdmin: true,
+  isActive: true,
   emailVerified: true,
   createdAt: true,
   memberships: {
@@ -32,10 +39,73 @@ const SAFE_USER_SELECT = {
   },
 } as const;
 
+export function durationToMs(value: string): number {
+  const match = /^(\d+)([smhd])?$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`Invalid duration: ${value}`);
+  }
+  const n = Number(match[1]);
+  const unit = match[2] ?? 's';
+  const mult: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  return n * mult[unit];
+}
+
 export function signToken(user: { id: string; email: string }): string {
   const payload: JwtPayload = { sub: user.id, email: user.email };
   const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'] };
   return jwt.sign(payload, env.JWT_SECRET, options);
+}
+
+function signRefreshToken(session: { id: string; user: { id: string; email: string } }): string {
+  const payload: JwtPayload & { jti: string } = { sub: session.user.id, email: session.user.email, jti: session.id };
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] });
+}
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+async function createSession(
+  user: { id: string; email: string },
+  meta?: SessionMeta
+): Promise<string> {
+  const id = randomUUID();
+  const refreshToken = signRefreshToken({ id, user });
+  await prisma.session.create({
+    data: {
+      id,
+      userId: user.id,
+      tokenHash: hashToken(refreshToken),
+      userAgent: meta?.userAgent ?? null,
+      ip: meta?.ip ?? null,
+      expiresAt: new Date(Date.now() + durationToMs(env.JWT_REFRESH_EXPIRES_IN)),
+    },
+  });
+  return refreshToken;
+}
+
+async function verifyRefreshToken(refreshToken: string): Promise<{ sessionId: string; user: { id: string; email: string } }> {
+  let payload: JwtPayload & { jti?: string };
+  try {
+    payload = jwt.verify(refreshToken, env.JWT_SECRET) as JwtPayload & { jti?: string };
+  } catch {
+    throw unauthorized('Session expirée ou invalide');
+  }
+
+  if (!payload.jti) {
+    throw unauthorized('Session invalide');
+  }
+
+  const session = await prisma.session.findUnique({ where: { id: payload.jti } });
+  if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
+    throw unauthorized('Session expirée ou révoquée');
+  }
+
+  if (session.tokenHash !== hashToken(refreshToken)) {
+    throw unauthorized('Session invalide');
+  }
+
+  return { sessionId: session.id, user: { id: payload.sub, email: payload.email } };
 }
 
 function generateCode(): string {
@@ -78,7 +148,7 @@ export async function register(input: RegisterInput) {
   };
 }
 
-export async function login(input: LoginInput) {
+export async function login(input: LoginInput, meta?: SessionMeta) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user) {
     throw unauthorized('Email ou mot de passe incorrect');
@@ -102,14 +172,15 @@ export async function login(input: LoginInput) {
     select: SAFE_USER_SELECT,
   });
 
-  if (!safeUser) {
+  if (!safeUser || !safeUser.isActive) {
     throw unauthorized('Email ou mot de passe incorrect');
   }
 
-  return { token: signToken(user), user: safeUser };
+  const refreshToken = await createSession(user, meta);
+  return { token: signToken(user), refreshToken, user: safeUser };
 }
 
-export async function verifyEmail(input: VerifyEmailInput) {
+export async function verifyEmail(input: VerifyEmailInput, meta?: SessionMeta) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user || !user.emailVerifyCode) {
     throw unauthorized('Code invalide ou expiré');
@@ -133,11 +204,49 @@ export async function verifyEmail(input: VerifyEmailInput) {
     select: SAFE_USER_SELECT,
   });
 
-  if (!safeUser) {
+  if (!safeUser || !safeUser.isActive) {
     throw unauthorized('Compte introuvable');
   }
 
-  return { token: signToken(user), user: safeUser };
+  const refreshToken = await createSession(user, meta);
+  return { token: signToken(user), refreshToken, user: safeUser };
+}
+
+export async function refreshSession(refreshToken: string) {
+  const { sessionId, user } = await verifyRefreshToken(refreshToken);
+
+  const safeUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: SAFE_USER_SELECT,
+  });
+
+  if (!safeUser || !safeUser.isActive) {
+    throw unauthorized('Compte introuvable');
+  }
+
+  const newRefresh = signRefreshToken({ id: sessionId, user });
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: {
+      tokenHash: hashToken(newRefresh),
+      lastUsedAt: new Date(),
+      expiresAt: new Date(Date.now() + durationToMs(env.JWT_REFRESH_EXPIRES_IN)),
+    },
+  });
+
+  await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+
+  return { token: signToken(user), refreshToken: newRefresh, user: safeUser };
+}
+
+export async function logout(refreshToken?: string): Promise<void> {
+  if (!refreshToken) {
+    return;
+  }
+  await prisma.session.updateMany({
+    where: { tokenHash: hashToken(refreshToken), revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
 }
 
 export async function resendCode(email: string) {

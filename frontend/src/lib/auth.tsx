@@ -24,11 +24,10 @@ interface User {
 
 type AuthResponse =
   | { requiresVerification: true; email: string }
-  | { token: string; user: User };
+  | { token?: string; user: User };
 
 interface AuthContextValue {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   pendingVerifyEmail: string | null;
@@ -44,7 +43,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('madastock_token'));
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -55,15 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await api.get('/auth/me');
       return res.data.user as User;
     },
-    enabled: !!token,
     retry: false,
   });
 
-  const applyAuth = (data: { token: string; user: User }) => {
-    localStorage.setItem('madastock_token', data.token);
-    setToken(data.token);
+  const applyAuth = (user: User) => {
     setPendingVerifyEmail(null);
-    queryClient.setQueryData(['me'], data.user);
+    queryClient.setQueryData(['me'], user);
   };
 
   const loginMutation = useMutation({
@@ -78,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPendingVerifyEmail(data.email);
         return;
       }
-      applyAuth(data);
+      applyAuth(data.user);
     },
     onError: (err: AxiosError<{ error: string }>) => {
       setAuthError(err.response?.data?.error ?? 'Erreur de connexion');
@@ -97,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPendingVerifyEmail(data.email);
         return;
       }
-      applyAuth(data);
+      applyAuth(data.user);
     },
     onError: (err: AxiosError<{ error: string }>) => {
       setAuthError(err.response?.data?.error ?? "Erreur d'inscription");
@@ -107,10 +102,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyMutation = useMutation({
     mutationFn: async (code: string) => {
       const res = await api.post('/auth/verify-email', { email: pendingVerifyEmail, code });
-      return res.data as { token: string; user: User };
+      return res.data as { user: User };
     },
     onSuccess: (data) => {
-      applyAuth(data);
+      applyAuth(data.user);
     },
   });
 
@@ -122,20 +117,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const logout = () => {
-    localStorage.removeItem('madastock_token');
-    setToken(null);
+    api.post('/auth/logout').catch(() => undefined);
     setPendingVerifyEmail(null);
     queryClient.setQueryData(['me'], null);
     queryClient.clear();
+    localStorage.removeItem('madastock_token');
+    localStorage.removeItem('madastock_store_id');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user: meData ?? null,
-        token,
-        isAuthenticated: !!token && !!meData,
-        isLoading: !!token && meLoading,
+        isAuthenticated: !!meData,
+        isLoading: meLoading,
         pendingVerifyEmail,
         needsVerification: !!pendingVerifyEmail,
         login: async (email, password) => {

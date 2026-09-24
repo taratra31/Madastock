@@ -39,6 +39,14 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
     delete: vi.fn(),
   },
+  session: {
+    create: vi.fn().mockResolvedValue({}),
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
 }));
 
 vi.mock('../src/lib/prisma', () => ({

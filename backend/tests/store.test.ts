@@ -50,6 +50,14 @@ const mockOwnerMembership = {
 
 const prismaMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
+  session: {
+    create: vi.fn().mockResolvedValue({}),
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
   plan: { findUnique: vi.fn() },
   store: {
     create: vi.fn(),
