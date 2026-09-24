@@ -9,6 +9,7 @@ export const listStock = asyncHandler(async (req: Request, res: Response) => {
     search: req.query.search as string | undefined,
     lowStock: req.query.lowStock === 'true',
     warehouseId: req.query.warehouseId as string | undefined,
+    expiry: req.query.expiry as string | undefined,
   });
   res.json(result);
 });

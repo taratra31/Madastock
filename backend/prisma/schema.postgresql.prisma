@@ -286,6 +286,7 @@ model User {
 model Store {
   id           String         @id @default(uuid())
   name         String
+  sector       String         @default("BOUTIQUE")
   slug         String?        @unique
   description  String?
   logoUrl      String?
@@ -540,6 +541,7 @@ model Stock {
   minStock    Decimal   @default(0) @db.Decimal(14, 3)
   maxStock    Decimal?  @db.Decimal(14, 3)
   location    String?
+  batchNumber String?
   expiryDate  DateTime?
   isShared    Boolean   @default(false)
   createdAt   DateTime  @default(now())

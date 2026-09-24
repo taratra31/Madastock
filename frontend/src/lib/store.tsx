@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 export interface StoreSummary {
   id: string;
   name: string;
+  sector: string;
   logoUrl: string | null;
   city: string | null;
   country: string;

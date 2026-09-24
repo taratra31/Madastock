@@ -16,6 +16,7 @@ export async function listProducts(storeId: string, query: {
     where.OR = [
       { name: { contains: query.search, mode: 'insensitive' } },
       { sku: { contains: query.search, mode: 'insensitive' } },
+      { barcode: { contains: query.search, mode: 'insensitive' } },
     ];
   }
   if (query.categoryId) {

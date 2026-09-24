@@ -59,6 +59,12 @@ export const roleLabels: Record<string, string> = {
   ACCOUNTANT: 'Comptable',
 };
 
+export const sectorLabels: Record<string, string> = {
+  BOUTIQUE: 'Boutique',
+  PHARMACIE: 'Pharmacie',
+  GARAGE: 'Garage',
+};
+
 export const itemTypeLabels: Record<string, string> = {
   LABOR: 'Main d\u2019œuvre',
   PART: 'Pièce / Produit',

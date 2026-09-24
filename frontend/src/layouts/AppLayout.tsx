@@ -23,11 +23,13 @@ import {
   MessageSquare,
   Bell,
   CreditCard,
+  ShoppingBag,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
 import api from '../lib/api';
-import { roleLabels } from '../lib/labels';
+import { roleLabels, sectorLabels } from '../lib/labels';
 
 interface NavItem {
   label: string;
@@ -35,50 +37,105 @@ interface NavItem {
   icon: typeof LayoutDashboard;
 }
 
-const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
-  {
-    title: 'Accueil',
-    items: [{ label: 'Tableau de bord', to: '/dashboard', icon: LayoutDashboard }],
-  },
-  {
-    title: 'Gestion commerciale',
-    items: [
-      { label: 'Produits', to: '/products', icon: Package },
-      { label: 'Catégories', to: '/categories', icon: Tags },
-      { label: 'Stock', to: '/stock', icon: Boxes },
-      { label: 'Clients', to: '/customers', icon: Users },
-      { label: 'Véhicules', to: '/vehicles', icon: Car },
-      { label: 'Mécaniciens', to: '/mechanics', icon: Wrench },
-    ],
-  },
-  {
-    title: 'Atelier',
-    items: [
-      { label: 'Ordres de réparation', to: '/work-orders', icon: ClipboardList },
-      { label: 'Rendez-vous', to: '/appointments', icon: CalendarClock },
-      { label: 'Garage', to: '/garage', icon: Gauge },
-    ],
-  },
-  {
-    title: 'CRM',
-    items: [
-      { label: 'Prospects', to: '/leads', icon: Target },
-      { label: 'Interactions', to: '/interactions', icon: MessageSquare },
-      { label: 'Rappels', to: '/reminders', icon: Bell },
-    ],
-  },
-  {
-    title: 'Finances',
-    items: [
-      { label: 'Devis & Factures', to: '/invoices', icon: FileText },
-      { label: 'Abonnement', to: '/billing', icon: CreditCard },
-    ],
-  },
-  {
-    title: 'Paramètres',
-    items: [{ label: 'Boutique', to: '/settings', icon: Settings }],
-  },
-];
+type NavSection = { title: string; items: NavItem[] };
+
+const HOME_SECTION: NavSection = {
+  title: 'Accueil',
+  items: [{ label: 'Tableau de bord', to: '/dashboard', icon: LayoutDashboard }],
+};
+
+const FINANCE_SECTION: NavSection = {
+  title: 'Finances',
+  items: [
+    { label: 'Devis & Factures', to: '/invoices', icon: FileText },
+    { label: 'Abonnement', to: '/billing', icon: CreditCard },
+  ],
+};
+
+const SETTINGS_SECTION: NavSection = {
+  title: 'Paramètres',
+  items: [{ label: 'Boutique', to: '/settings', icon: Settings }],
+};
+
+const VENTE_ITEM: NavItem = { label: 'Ventes (POS)', to: '/sales', icon: ShoppingBag };
+
+function navForSector(sector?: string): NavSection[] {
+  if (sector === 'GARAGE') {
+    return [
+      HOME_SECTION,
+      {
+        title: 'Gestion commerciale',
+        items: [
+          { label: 'Produits', to: '/products', icon: Package },
+          { label: 'Catégories', to: '/categories', icon: Tags },
+          { label: 'Stock', to: '/stock', icon: Boxes },
+          { label: 'Clients', to: '/customers', icon: Users },
+          { label: 'Véhicules', to: '/vehicles', icon: Car },
+          { label: 'Mécaniciens', to: '/mechanics', icon: Wrench },
+        ],
+      },
+      {
+        title: 'Atelier',
+        items: [
+          { label: 'Ordres de réparation', to: '/work-orders', icon: ClipboardList },
+          { label: 'Rendez-vous', to: '/appointments', icon: CalendarClock },
+          { label: 'Garage', to: '/garage', icon: Gauge },
+        ],
+      },
+      {
+        title: 'CRM',
+        items: [
+          { label: 'Prospects', to: '/leads', icon: Target },
+          { label: 'Interactions', to: '/interactions', icon: MessageSquare },
+          { label: 'Rappels', to: '/reminders', icon: Bell },
+        ],
+      },
+      FINANCE_SECTION,
+      SETTINGS_SECTION,
+    ];
+  }
+
+  if (sector === 'PHARMACIE') {
+    return [
+      HOME_SECTION,
+      {
+        title: 'Vente',
+        items: [
+          VENTE_ITEM,
+          { label: 'Clients', to: '/customers', icon: Users },
+        ],
+      },
+      {
+        title: 'Gestion du stock',
+        items: [
+          { label: 'Produits', to: '/products', icon: Package },
+          { label: 'Catégories', to: '/categories', icon: Tags },
+          { label: 'Stock', to: '/stock', icon: Boxes },
+          { label: 'Alertes péremption', to: '/stock?expiry=soon', icon: AlertTriangle },
+        ],
+      },
+      FINANCE_SECTION,
+      SETTINGS_SECTION,
+    ];
+  }
+
+  // BOUTIQUE (défaut)
+  return [
+    HOME_SECTION,
+    {
+      title: 'Gestion commerciale',
+      items: [
+        VENTE_ITEM,
+        { label: 'Produits', to: '/products', icon: Package },
+        { label: 'Catégories', to: '/categories', icon: Tags },
+        { label: 'Stock', to: '/stock', icon: Boxes },
+        { label: 'Clients', to: '/customers', icon: Users },
+      ],
+    },
+    FINANCE_SECTION,
+    SETTINGS_SECTION,
+  ];
+}
 
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -106,12 +163,14 @@ export default function AppLayout() {
     return m?.role ?? '';
   }, [storeList, currentStore]);
 
+  const navSections = useMemo(() => navForSector(currentStore?.sector), [currentStore?.sector]);
+
   useEffect(() => setUserMenuOpen(false), [location.pathname]);
 
   const currentLabel = useMemo(() => {
-    const all = NAV_SECTIONS.flatMap((s) => s.items);
+    const all = navSections.flatMap((s) => s.items);
     return all.find((i) => location.pathname.startsWith(i.to))?.label ?? '';
-  }, [location.pathname]);
+  }, [location.pathname, navSections]);
 
   if (isLoading) {
     return (
@@ -145,7 +204,9 @@ export default function AppLayout() {
             <span className="block text-[17px] font-bold tracking-tight text-white">
               Mada<span className="text-emerald-400">Stock</span>
             </span>
-            <span className="block text-[10px] text-slate-500 tracking-wide">Gestion de boutique</span>
+            <p className="block text-[10px] text-slate-500 tracking-wide">
+              {currentStore?.sector ? sectorLabels[currentStore.sector] ?? currentStore.sector : 'Gestion de boutique'}
+            </p>
           </span>
         </Link>
         <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800">
@@ -154,7 +215,7 @@ export default function AppLayout() {
       </div>
 
       <nav className="flex-1 min-h-0 overflow-hidden px-3 py-2.5 space-y-2.5">
-        {NAV_SECTIONS.map((section) => (
+        {navSections.map((section) => (
           <div key={section.title}>
             <p className="px-2.5 mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
               <span className="w-1 h-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400" />

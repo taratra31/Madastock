@@ -21,6 +21,7 @@ import Leads from './pages/Leads';
 import Interactions from './pages/Interactions';
 import Reminders from './pages/Reminders';
 import Billing from './pages/Billing';
+import Sales from './pages/Sales';
 import AppLayout from './layouts/AppLayout';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/stock" element={<Stock />} />
+          <Route path="/sales" element={<Sales />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/settings" element={<StoreSettings />} />

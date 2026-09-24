@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { formatDate } from '../lib/format';
-import { roleLabels } from '../lib/labels';
+import { roleLabels, sectorLabels } from '../lib/labels';
 import {
   Badge, Button, Card, ConfirmDialog, EmptyState, ErrorMessage, Field, Input, Loading,
   Modal, PageHeader, Select, Textarea,
@@ -17,6 +17,7 @@ import {
 interface StoreData {
   id: string;
   name: string;
+  sector: string;
   description: string | null;
   logoUrl: string | null;
   address: string | null;
@@ -110,6 +111,7 @@ function SettingsBody({ store }: { store: StoreData }) {
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
   const [formName, setFormName] = useState(store.name);
+  const [formSector, setFormSector] = useState(store.sector);
   const [formEmail, setFormEmail] = useState(store.email ?? '');
   const [formPhone, setFormPhone] = useState(store.phone ?? '');
   const [formCity, setFormCity] = useState(store.city ?? '');
@@ -183,6 +185,7 @@ function SettingsBody({ store }: { store: StoreData }) {
     e.preventDefault();
     updateMutation.mutate({
       name: formName,
+      sector: formSector,
       email: formEmail || undefined,
       phone: formPhone || undefined,
       city: formCity || undefined,
@@ -235,6 +238,10 @@ function SettingsBody({ store }: { store: StoreData }) {
                 <span className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1 font-medium">
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   {planName}
+                </span>
+                <span className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1 font-medium">
+                  <Tag className="w-3.5 h-3.5 text-emerald-300" />
+                  {sectorLabels[store.sector] ?? store.sector}
                 </span>
                 <span className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1">
                   <Crown className="w-3.5 h-3.5 text-yellow-300" />
@@ -302,6 +309,15 @@ function SettingsBody({ store }: { store: StoreData }) {
                   <div className="sm:col-span-2">
                     <Field label="Nom de la boutique" required>
                       <Input value={formName} onChange={(e) => setFormName(e.target.value)} required />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Field label="Secteur d\u2019activité" hint="Adapte les modules affichés dans le menu.">
+                      <Select value={formSector} onChange={(e) => setFormSector(e.target.value)}>
+                        <option value="BOUTIQUE">Boutique (vente produits)</option>
+                        <option value="PHARMACIE">Pharmacie (médicaments, péremption)</option>
+                        <option value="GARAGE">Garage (atelier, véhicules)</option>
+                      </Select>
                     </Field>
                   </div>
                   <div className="sm:col-span-2">

@@ -154,21 +154,27 @@ export async function createSale(storeId: string, userId: string, input: CreateS
     for (const it of input.items) {
       if (!it.productId) continue;
 
-      const [stock, product] = await Promise.all([
-        tx.stock.findFirst({
+      const [stocks, product] = await Promise.all([
+        tx.stock.findMany({
           where: {
             storeId,
             warehouseId: warehouse.id,
             productId: it.productId,
             variantId: it.variantId || null,
           },
+          orderBy: [{ expiryDate: { sort: 'asc', nulls: 'last' } }],
+          take: 1,
         }),
         tx.product.findUnique({
           where: { id: it.productId },
           select: { costPriceAr: true },
         }),
       ]);
+      const stock = stocks[0];
       if (!stock) throw badRequest('Stock introuvable pour un des articles');
+      if (stock.expiryDate && stock.expiryDate < new Date()) {
+        throw badRequest('Produit périmé : impossible de le vendre');
+      }
       if (Number(stock.quantityAr) < Number(it.quantity)) {
         throw badRequest('Stock insuffisant pour un des articles');
       }

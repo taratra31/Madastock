@@ -16,6 +16,7 @@ export async function createStore(userId: string, input: CreateStoreInput) {
     const store = await tx.store.create({
       data: {
         name: input.name,
+        sector: input.sector,
         description: input.description,
         address: input.address,
         city: input.city,
@@ -75,6 +76,7 @@ export async function listStores(userId: string) {
         select: {
           id: true,
           name: true,
+          sector: true,
           logoUrl: true,
           city: true,
           country: true,
@@ -106,6 +108,7 @@ export async function getStore(storeId: string, userId: string) {
         select: {
           id: true,
           name: true,
+          sector: true,
           description: true,
           logoUrl: true,
           address: true,
@@ -153,7 +156,7 @@ export async function updateStore(storeId: string, userId: string, input: Update
   const store = await prisma.store.update({
     where: { id: storeId },
     data: input,
-    select: { id: true, name: true, description: true, city: true, country: true, currency: true },
+    select: { id: true, name: true, sector: true, description: true, city: true, country: true, currency: true },
   });
 
   return store;

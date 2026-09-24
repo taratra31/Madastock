@@ -8,6 +8,7 @@ import api from '../lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, EmptyState, Field, Input, Loading, Modal, PageHeader, Select } from '../components/ui';
 import { roleLabels } from '../lib/labels';
+import { sectorLabels } from '../lib/labels';
 
 const roleBadgeCls: Record<string, string> = {
   OWNER: 'bg-yellow-50 text-yellow-700',
@@ -18,6 +19,12 @@ const roleBadgeCls: Record<string, string> = {
   ACCOUNTANT: 'bg-cyan-50 text-cyan-700',
 };
 
+const sectorBadgeCls: Record<string, string> = {
+  BOUTIQUE: 'bg-green-50 text-green-700',
+  PHARMACIE: 'bg-rose-50 text-rose-700',
+  GARAGE: 'bg-slate-100 text-slate-700',
+};
+
 export default function Stores() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const { currentStore, setCurrentStore, selectFirstStore } = useStores();
@@ -25,6 +32,7 @@ export default function Stores() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newSector, setNewSector] = useState('BOUTIQUE');
   const [newCity, setNewCity] = useState('');
   const [newCountry, setNewCountry] = useState('MG');
   const [newCurrency, setNewCurrency] = useState('MGA');
@@ -41,7 +49,7 @@ export default function Stores() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; city?: string; country?: string; currency?: string }) => {
+    mutationFn: async (data: { name: string; sector?: string; city?: string; country?: string; currency?: string }) => {
       const res = await api.post('/stores', data);
       return res.data.store as { id: string };
     },
@@ -50,6 +58,7 @@ export default function Stores() {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
       setCreateOpen(false);
       setNewName('');
+      setNewSector('BOUTIQUE');
       setNewCity('');
       setCurrentStore(store.id);
       navigate('/dashboard', { replace: true });
@@ -78,7 +87,7 @@ export default function Stores() {
       toast.error('Saisissez le nom de la boutique');
       return;
     }
-    createMutation.mutate({ name: newName.trim(), city: newCity.trim() || undefined, country: newCountry, currency: newCurrency });
+    createMutation.mutate({ name: newName.trim(), sector: newSector, city: newCity.trim() || undefined, country: newCountry, currency: newCurrency });
   };
 
   const list = memberships ?? [];
@@ -149,6 +158,9 @@ export default function Stores() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 mt-4">
+                      <Badge className={sectorBadgeCls[m.store.sector] ?? 'bg-slate-100 text-slate-600'}>
+                        {sectorLabels[m.store.sector] ?? m.store.sector}
+                      </Badge>
                       <Badge className={roleBadgeCls[m.role] ?? 'bg-slate-100 text-slate-600'}>
                         {roleLabels[m.role] ?? m.role}
                       </Badge>
@@ -196,6 +208,13 @@ export default function Stores() {
         <form onSubmit={handleCreate} className="space-y-4">
           <Field label="Nom de la boutique" required>
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex : Boutique Tanjona" required />
+          </Field>
+          <Field label="Secteur d\u2019activité" required>
+            <Select value={newSector} onChange={(e) => setNewSector(e.target.value)}>
+              <option value="BOUTIQUE">Boutique (vente produits)</option>
+              <option value="PHARMACIE">Pharmacie (médicaments, péremption)</option>
+              <option value="GARAGE">Garage (atelier, véhicules)</option>
+            </Select>
           </Field>
           <Field label="Ville">
             <Input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="Antananarivo" />

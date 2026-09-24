@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownToLine, ArrowUpFromLine, Boxes } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { ArrowDownToLine, ArrowUpFromLine, Boxes, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
-import { formatAr, formatNumber } from '../lib/format';
+import { formatAr, formatNumber, formatDate } from '../lib/format';
 import { Badge, Button, Card, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Select, ErrorMessage } from '../components/ui';
 
 interface Warehouse {
@@ -27,6 +28,10 @@ interface StockRow {
   available: number;
   minStock: number;
   location: string | null;
+  batchNumber: string | null;
+  expiryDate: string | null;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
   isLow: boolean;
 }
 
@@ -43,20 +48,29 @@ interface ProductOption {
 
 export default function Stock() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [expiry, setExpiry] = useState(searchParams.get('expiry') ?? '');
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustType, setAdjustType] = useState<'IN' | 'OUT'>('IN');
   const [productId, setProductId] = useState('');
   const [qty, setQty] = useState('');
   const [reason, setReason] = useState('');
+  const [batchNumber, setBatchNumber] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
 
   const { data: stock, isLoading, error } = useQuery({
-    queryKey: ['stock', search, warehouseId, lowStockOnly],
+    queryKey: ['stock', search, warehouseId, lowStockOnly, expiry],
     queryFn: async () => {
       const res = await api.get('/stock', {
-        params: { search: search || undefined, warehouseId: warehouseId || undefined, lowStock: lowStockOnly || undefined },
+        params: {
+          search: search || undefined,
+          warehouseId: warehouseId || undefined,
+          lowStock: lowStockOnly || undefined,
+          expiry: expiry || undefined,
+        },
       });
       return res.data as StockResponse;
     },
@@ -79,7 +93,7 @@ export default function Stock() {
   });
 
   const adjustMutation = useMutation({
-    mutationFn: async (data: { productId: string; warehouseId: string; quantity: number; type: 'IN' | 'OUT'; reason?: string }) => {
+    mutationFn: async (data: { productId: string; warehouseId: string; quantity: number; type: 'IN' | 'OUT'; reason?: string; batchNumber?: string; expiryDate?: string }) => {
       const res = await api.post('/stock/adjust', data);
       return res.data;
     },
@@ -90,6 +104,8 @@ export default function Stock() {
       setProductId('');
       setQty('');
       setReason('');
+      setBatchNumber('');
+      setExpiryDate('');
       setAdjustOpen(false);
     },
     onError: (err: any) => toast.error(err.response?.data?.error ?? 'Erreur'),
@@ -100,6 +116,8 @@ export default function Stock() {
     setProductId(preProductId ?? '');
     setQty('');
     setReason('');
+    setBatchNumber('');
+    setExpiryDate('');
     setAdjustOpen(true);
   };
 
@@ -110,7 +128,15 @@ export default function Stock() {
       toast.error('Complétez le produit, l\u2019entrepôt et la quantité');
       return;
     }
-    adjustMutation.mutate({ productId, warehouseId, quantity, type: adjustType, reason: reason || undefined });
+    adjustMutation.mutate({
+      productId,
+      warehouseId,
+      quantity,
+      type: adjustType,
+      reason: reason || undefined,
+      batchNumber: adjustType === 'IN' && batchNumber.trim() ? batchNumber.trim() : undefined,
+      expiryDate: adjustType === 'IN' && expiryDate ? expiryDate : undefined,
+    });
   };
 
   return (
@@ -157,6 +183,15 @@ export default function Stock() {
             <option key={w.id} value={w.id}>{w.name}{w.isMain ? ' (principal)' : ''}</option>
           ))}
         </Select>
+        <Select value={expiry} onChange={(e) => {
+          const v = e.target.value;
+          setExpiry(v);
+          setSearchParams(v ? { expiry: v } : {}, { replace: true });
+        }} className="sm:w-52">
+          <option value="">Toutes les péremptions</option>
+          <option value="soon">Proches (30 jours)</option>
+          <option value="expired">Périmés</option>
+        </Select>
         <label className="flex items-center gap-2 text-sm text-slate-600 whitespace-nowrap">
           <input
             type="checkbox"
@@ -167,6 +202,27 @@ export default function Stock() {
           Stock bas uniquement
         </label>
       </Card>
+
+      {(() => {
+        const expired = (stock?.data ?? []).filter((r) => r.isExpired).length;
+        const soon = (stock?.data ?? []).filter((r) => r.isExpiringSoon).length;
+        if (expired === 0 && soon === 0) return null;
+        return (
+          <Card className={`mb-4 p-4 flex flex-wrap items-center gap-3 ${expired > 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+            <AlertTriangle className={`w-5 h-5 shrink-0 ${expired > 0 ? 'text-red-600' : 'text-amber-600'}`} />
+            <p className={`text-sm font-medium ${expired > 0 ? 'text-red-700' : 'text-amber-700'}`}>
+              {expired > 0 ? `${expired} produit(s) périmé(s) — vente bloquée tant que le stock n'est pas ajusté ou jeté.` : ''}
+              {soon > 0 ? `${soon > 0 && expired > 0 ? ' ' : ''}${soon} produit(s) à date de péremption proche (30 jours).` : ''}
+            </p>
+            <button
+              onClick={() => { setExpiry('soon'); setSearchParams({ expiry: 'soon' }, { replace: true }); }}
+              className="ml-auto text-xs font-semibold text-green-700 hover:underline"
+            >
+              Voir les alertes
+            </button>
+          </Card>
+        );
+      })()}
 
       {error ? (
         <ErrorMessage message={(error as any).response?.data?.error ?? 'Erreur de chargement'} />
@@ -184,6 +240,7 @@ export default function Stock() {
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100 bg-slate-50/60">
                   <th className="px-4 py-3 font-medium">Produit</th>
                   <th className="px-4 py-3 font-medium">Entrepôt</th>
+                  <th className="px-4 py-3 font-medium">Lot / Péremption</th>
                   <th className="px-4 py-3 font-medium text-right">Quantité</th>
                   <th className="px-4 py-3 font-medium text-right">Réservé</th>
                   <th className="px-4 py-3 font-medium text-right">Disponible</th>
@@ -210,17 +267,34 @@ export default function Stock() {
                       {r.warehouseName}
                       {r.isMainWarehouse && <span className="ml-1 text-xs text-green-600">★</span>}
                     </td>
+                    <td className="px-4 py-3">
+                      <p className="text-slate-500">{r.batchNumber ? `Lot ${r.batchNumber}` : '—'}</p>
+                      {r.expiryDate ? (
+                        <p className={`text-xs ${r.isExpired ? 'text-red-600 font-semibold' : r.isExpiringSoon ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                          {formatDate(r.expiryDate)}
+                          {r.isExpired ? ' · périmé' : r.isExpiringSoon ? ' · bientôt' : ''}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-300">—</p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-medium text-dark-900">{formatNumber(r.quantity)}</td>
                     <td className="px-4 py-3 text-right text-slate-500">{formatNumber(r.reserved)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-700">{formatNumber(r.available)}</td>
                     <td className="px-4 py-3">
-                      {r.isLow ? (
+                      {r.isExpired ? (
+                        <Badge className="bg-red-50 text-red-600">Périmé</Badge>
+                      ) : r.isLow ? (
                         <Badge className="bg-red-50 text-red-600">Stock bas</Badge>
                       ) : (
                         r.quantity <= 0 ? (
                           <Badge className="bg-slate-100 text-slate-500">Rupture</Badge>
                         ) : (
-                          <Badge className="bg-green-50 text-green-600">OK</Badge>
+                          r.isExpiringSoon ? (
+                            <Badge className="bg-amber-50 text-amber-700">Péremption proche</Badge>
+                          ) : (
+                            <Badge className="bg-green-50 text-green-600">OK</Badge>
+                          )
                         )
                       )}
                     </td>
@@ -264,6 +338,16 @@ export default function Stock() {
           <Field label={`Quantité (${adjustType === 'IN' ? 'entrée' : 'sortie'})`} required>
             <Input type="number" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" required />
           </Field>
+          {adjustType === 'IN' && (
+            <>
+              <Field label="N° de lot" hint="Recommandé pour la pharmacie (date de péremption).">
+                <Input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="Ex : LOT-2026-01" />
+              </Field>
+              <Field label="Date de péremption">
+                <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+              </Field>
+            </>
+          )}
           <Field label="Motif">
             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ex : Livraison fournisseur, casse..." />
           </Field>

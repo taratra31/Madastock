@@ -5,6 +5,7 @@ export async function listStock(storeId: string, query: {
   search?: string;
   lowStock?: boolean;
   warehouseId?: string;
+  expiry?: string;
 }) {
   const where: Record<string, unknown> = { storeId };
 
@@ -35,6 +36,9 @@ export async function listStock(storeId: string, query: {
     }),
   ]);
 
+  const now = new Date();
+  const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
   const rows = stocks
     .filter(s => s.product)
     .filter(s => {
@@ -53,6 +57,11 @@ export async function listStock(storeId: string, query: {
         Number(s.quantityAr) <= (s.product.lowStockThreshold ?? 5)
       );
     })
+    .filter(s => {
+      if (query.expiry === 'expired') return !!s.expiryDate && s.expiryDate < now;
+      if (query.expiry === 'soon') return !!s.expiryDate && s.expiryDate >= now && s.expiryDate <= soon;
+      return true;
+    })
     .map(s => ({
       id: s.id,
       productId: s.productId,
@@ -69,6 +78,10 @@ export async function listStock(storeId: string, query: {
       available: Number(s.quantityAr) - Number(s.reservedQty),
       minStock: Number(s.minStock),
       location: s.location,
+      batchNumber: s.batchNumber,
+      expiryDate: s.expiryDate,
+      isExpired: !!s.expiryDate && s.expiryDate < now,
+      isExpiringSoon: !!s.expiryDate && s.expiryDate >= now && s.expiryDate <= soon,
       isLow:
         s.product?.trackStock === true &&
         Number(s.quantityAr) <= (s.product.lowStockThreshold ?? 5),
@@ -96,6 +109,8 @@ export async function adjustStock(storeId: string, input: {
   reason?: string;
   type?: 'IN' | 'OUT';
   unitCostAr?: number;
+  batchNumber?: string;
+  expiryDate?: string;
 }) {
   if (!input.productId || !input.warehouseId) {
     throw badRequest('productId et warehouseId requis');
@@ -115,6 +130,11 @@ export async function adjustStock(storeId: string, input: {
     },
   });
 
+  const meta = {
+    batchNumber: input.batchNumber?.trim() || null,
+    expiryDate: input.expiryDate ? new Date(input.expiryDate) : undefined,
+  };
+
   if (!stock) {
     await prisma.stock.create({
       data: {
@@ -123,6 +143,8 @@ export async function adjustStock(storeId: string, input: {
         productId: input.productId,
         quantityAr: Math.max(0, qty),
         reservedQty: 0,
+        batchNumber: meta.batchNumber,
+        expiryDate: meta.expiryDate,
       },
     });
   } else {
@@ -130,7 +152,11 @@ export async function adjustStock(storeId: string, input: {
     if (newQty < 0) throw badRequest('Stock insuffisant');
     await prisma.stock.update({
       where: { id: stock.id },
-      data: { quantityAr: newQty },
+      data: {
+        quantityAr: newQty,
+        ...(input.batchNumber?.trim() ? { batchNumber: meta.batchNumber } : {}),
+        ...(input.expiryDate ? { expiryDate: meta.expiryDate } : {}),
+      },
     });
   }
 

@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
+export const STORE_SECTORS = ['BOUTIQUE', 'PHARMACIE', 'GARAGE'] as const;
+export type StoreSector = (typeof STORE_SECTORS)[number];
+
 export const createStoreSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est requis').max(255),
+  sector: z.enum(STORE_SECTORS).default('BOUTIQUE'),
   description: z.string().trim().max(1000).optional(),
   address: z.string().trim().max(500).optional(),
   city: z.string().trim().max(100).optional(),
@@ -13,6 +17,7 @@ export const createStoreSchema = z.object({
 
 export const updateStoreSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
+  sector: z.enum(STORE_SECTORS).optional(),
   description: z.string().trim().max(1000).optional(),
   address: z.string().trim().max(500).optional(),
   city: z.string().trim().max(100).optional(),
