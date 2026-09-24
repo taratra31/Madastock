@@ -4,8 +4,10 @@ services:
     runtime: node
     plan: free
     healthCheckPath: /api/v1/health
-    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build && npx prisma generate
-    startCommand: cd backend && npx prisma migrate deploy && node dist/server.js
+    buildCommand: cd frontend && npm ci --include=dev && npm run build && cd ../backend && npm ci --include=dev && npm run build && sh -c 'case "$DATABASE_URL" in postgres*|postgresql*) cp prisma/schema.postgresql.prisma prisma/schema.prisma && rm -rf prisma/migrations && cp -r prisma/migrations.postgresql prisma/migrations ;; esac' && npx prisma generate
+    startCommand: cd backend && npx prisma migrate deploy && sh -c 'if [ "$DATA_SYNC" = "1" ]; then node scripts/sync-sqlite-to-pg.mjs; fi' && node dist/server.js
+    # NOTE: production DATABASE_URL is set via the Render service env var (sync:false
+    # below is informational only). SQLite local dev stays on prisma/schema.prisma.
     envVars:
       - key: NODE_ENV
         value: production

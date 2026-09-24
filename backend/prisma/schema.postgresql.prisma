@@ -13,233 +13,39 @@ datasource db {
 // ENUMS
 // ============================================================
 
-enum StoreMemberRole {
-  OWNER
-  ADMIN
-  MANAGER
-  CASHIER
-  STOCK_MANAGER
-  ACCOUNTANT
-}
 
-enum SaleStatus {
-  DRAFT
-  COMPLETED
-  CANCELLED
-}
 
-enum PaymentStatus {
-  PENDING
-  PAID
-  PARTIALLY_PAID
-  CANCELLED
-  REFUNDED
-}
 
-enum PaymentMethod {
-  CASH
-  MOBILE_MONEY
-  BANK_TRANSFER
-  CARD
-  OTHER
-}
 
-enum PurchaseStatus {
-  PENDING
-  ORDERED
-  RECEIVED
-  CANCELLED
-}
 
-enum MovementType {
-  STOCK_IN
-  STOCK_OUT
-  ADJUSTMENT_IN
-  ADJUSTMENT_OUT
-  SALE
-  PURCHASE
-  TRANSFER_IN
-  TRANSFER_OUT
-  RETURN
-  EXPIRY_DAMAGE
-}
 
-enum SubscriptionStatus {
-  ACTIVE
-  TRIALING
-  PAST_DUE
-  CANCELLED
-  EXPIRED
-}
 
-enum BillingCycle {
-  MONTHLY
-  QUARTERLY
-  YEARLY
-}
 
-enum TransactionType {
-  IN
-  OUT
-}
 
-enum CashTransactionSource {
-  SALE
-  EXPENSE
-  PURCHASE
-  DEPOSIT
-  WITHDRAWAL
-  ADJUSTMENT
-}
 
-enum NotificationType {
-  LOW_STOCK
-  OUT_OF_STOCK
-  EXPIRY_SOON
-  SALE_COMPLETED
-  PAYMENT_RECEIVED
-  SUBSCRIPTION
-  SYSTEM
-}
 
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  LOGIN
-  LOGOUT
-  EXPORT
-  IMPORT
-}
 
 // ============================================================
 // GARAGE & ATELIER
 // ============================================================
 
-enum VehicleType {
-  CAR
-  MOTORCYCLE
-  TRUCK
-  VAN
-  TAXI
-  BUS
-  OTHER
-}
 
-enum FuelType {
-  PETROL
-  DIESEL
-  ELECTRIC
-  HYBRID
-  LPG
-  OTHER
-}
 
-enum WorkOrderStatus {
-  QUOTED
-  IN_PROGRESS
-  WAITING_PART
-  PAUSED
-  COMPLETED
-  COLLECTED
-  CANCELLED
-}
 
-enum WorkOrderPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
 
-enum LineItemType {
-  LABOR
-  PART
-  OTHER
-}
 
-enum AppointmentType {
-  REPAIR
-  MAINTENANCE
-  INSPECTION
-  DIAGNOSIS
-  PICKUP
-  OTHER
-}
 
-enum AppointmentStatus {
-  SCHEDULED
-  CONFIRMED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  NO_SHOW
-}
 
 // ============================================================
 // CRM
 // ============================================================
 
-enum LeadSource {
-  REFERRAL
-  WALK_IN
-  ONLINE
-  PHONE
-  SOCIAL_MEDIA
-  OTHER
-}
 
-enum LeadStatus {
-  NEW
-  CONTACTED
-  QUALIFIED
-  FOLLOW_UP
-  WON
-  LOST
-}
 
-enum InteractionType {
-  CALL
-  EMAIL
-  WHATSAPP
-  SMS
-  VISIT
-  MEETING
-  NOTE
-}
 
-enum ReminderType {
-  SERVICE_DUE
-  FOLLOW_UP
-  PAYMENT
-  APPOINTMENT
-  OTHER
-}
 
-enum ReminderStatus {
-  PENDING
-  SENT
-  DONE
-  CANCELLED
-}
 
-enum InvoiceDocType {
-  QUOTE
-  INVOICE
-}
 
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  ISSUED
-  ACCEPTED
-  REJECTED
-  EXPIRED
-  PAID
-  PARTIALLY_PAID
-  OVERDUE
-  CANCELLED
-}
 
 // ============================================================
 // AUTH & MULTI-TENANT
@@ -261,7 +67,7 @@ model User {
   passwordResetCode     String?
   passwordResetSentAt   DateTime?
   passwordResetExpiresAt DateTime?
-  createdAt     DateTime       @default(now())
+  createdAt           DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   deletedAt     DateTime?
 
@@ -350,6 +156,7 @@ model Store {
   interactions     Interaction[]
   reminders        Reminder[]
   invoices         Invoice[]
+  payments         Payment[]
 
   @@index([name])
   @@map("stores")
@@ -359,7 +166,7 @@ model StoreMember {
   id           String          @id @default(uuid())
   storeId      String
   userId       String
-  role         StoreMemberRole @default(MANAGER)
+  role         String @default("MANAGER")
   isOwner      Boolean         @default(false)
   canManageAll Boolean         @default(false)
   createdAt    DateTime        @default(now())
@@ -381,19 +188,21 @@ model Plan {
   id               String       @id @default(uuid())
   name             String       @unique
   description      String
-  priceAr          Decimal      @db.Decimal(12, 2)
-  billingCycle     BillingCycle @default(MONTHLY)
+  priceAr          Decimal      
+  billingCycle     String @default("MONTHLY")
+  durationMonths   Int          @default(1)
   maxUsers         Int          @default(1)
   maxProducts      Int          @default(50)
   maxWarehouses    Int          @default(1)
   maxCustomers     Int          @default(100)
   maxSalesPerMonth Int?
-  featuresJson     Json
+  featuresJson     String
   isActive         Boolean      @default(true)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   subscriptions Subscription[]
+  payments       Payment[]
 
   @@map("plans")
 }
@@ -402,12 +211,12 @@ model Subscription {
   id                 String             @id @default(uuid())
   storeId            String             @unique
   planId             String
-  status             SubscriptionStatus @default(TRIALING)
+  status             String @default("TRIALING")
   trialEndsAt        DateTime?
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  priceAr            Decimal            @db.Decimal(12, 2)
-  billingCycle       BillingCycle       @default(MONTHLY)
+  priceAr            Decimal            
+  billingCycle       String       @default("MONTHLY")
   autoRenew          Boolean            @default(true)
   cancelledAt        DateTime?
   createdAt          DateTime           @default(now())
@@ -419,6 +228,31 @@ model Subscription {
   @@index([planId])
   @@index([status])
   @@map("subscriptions")
+}
+
+model Payment {
+  id                 String    @id @default(uuid())
+  storeId            String
+  planId             String
+  amountAr           Decimal
+  merchantReference  String    @unique
+  provider           String?
+  currency           String    @default("MGA")
+  providerReference  String?   @unique
+  url                String?
+  status             String    @default("PENDING")
+  rawResponse        String?
+  paidAt             DateTime?
+  failedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan  Plan  @relation(fields: [planId], references: [id])
+
+  @@index([storeId])
+  @@index([status])
+  @@map("payments")
 }
 
 // ============================================================
@@ -475,10 +309,10 @@ model Product {
   barcode          String?
   imageUrl         String?
   unit             String         @default("piece")
-  costPriceAr      Decimal        @db.Decimal(12, 2)
-  sellingPriceAr   Decimal        @db.Decimal(12, 2)
-  wholesalePriceAr Decimal?       @db.Decimal(12, 2)
-  taxRatePct       Decimal        @default(0) @db.Decimal(5, 2)
+  costPriceAr      Decimal        
+  sellingPriceAr   Decimal        
+  wholesalePriceAr Decimal?       
+  taxRatePct       Decimal        @default(0) 
   lowStockThreshold Int           @default(5)
   trackStock       Boolean        @default(true)
   sellByWeight     Boolean        @default(false)
@@ -512,9 +346,9 @@ model ProductVariant {
   name           String
   sku            String?
   barcode        String?
-  costPriceAr    Decimal? @db.Decimal(12, 2)
-  sellingPriceAr Decimal? @db.Decimal(12, 2)
-  optionsJson    Json?
+  costPriceAr    Decimal? 
+  sellingPriceAr Decimal? 
+  optionsJson    String?
   imageUrl       String?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -559,10 +393,10 @@ model Stock {
   warehouseId String
   productId   String?
   variantId   String?
-  quantityAr  Decimal   @default(0) @db.Decimal(14, 3)
-  reservedQty Decimal   @default(0) @db.Decimal(14, 3)
-  minStock    Decimal   @default(0) @db.Decimal(14, 3)
-  maxStock    Decimal?  @db.Decimal(14, 3)
+  quantityAr  Decimal   @default(0) 
+  reservedQty Decimal   @default(0) 
+  minStock    Decimal   @default(0) 
+  maxStock    Decimal?  
   location    String?
   batchNumber String?
   expiryDate  DateTime?
@@ -586,9 +420,9 @@ model StockMovement {
   warehouseId   String
   productId     String?
   variantId     String?
-  movementType  MovementType
-  quantity      Decimal      @db.Decimal(14, 3)
-  unitCostAr    Decimal?     @db.Decimal(12, 2)
+  movementType  String
+  quantity      Decimal      
+  unitCostAr    Decimal?     
   reason        String?
   referenceId   String?
   referenceType String?
@@ -646,7 +480,7 @@ model Customer {
   gender        String?
   isVip         Boolean  @default(false)
   loyaltyPoints Int      @default(0)
-  debtAr        Decimal  @default(0) @db.Decimal(12, 2)
+  debtAr        Decimal  @default(0) 
   notes         String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -675,15 +509,15 @@ model Sale {
   storeId       String
   receiptNumber String        @unique
   customerId    String?
-  status        SaleStatus    @default(COMPLETED)
-  paymentStatus PaymentStatus @default(PAID)
-  subtotalAr    Decimal       @db.Decimal(12, 2)
-  discountAr    Decimal       @default(0) @db.Decimal(12, 2)
-  taxAr         Decimal       @default(0) @db.Decimal(12, 2)
-  totalAr       Decimal       @db.Decimal(12, 2)
-  amountPaidAr  Decimal       @default(0) @db.Decimal(12, 2)
-  changeAr      Decimal       @default(0) @db.Decimal(12, 2)
-  paymentMethod PaymentMethod @default(CASH)
+  status        String    @default("COMPLETED")
+  paymentStatus String @default("PAID")
+  subtotalAr    Decimal       
+  discountAr    Decimal       @default(0) 
+  taxAr         Decimal       @default(0) 
+  totalAr       Decimal       
+  amountPaidAr  Decimal       @default(0) 
+  changeAr      Decimal       @default(0) 
+  paymentMethod String @default("CASH")
   notes         String?
   isWholesale   Boolean       @default(false)
   createdById   String?
@@ -714,12 +548,12 @@ model SaleItem {
   saleId      String
   productId   String?
   variantId   String?
-  quantityAr  Decimal   @db.Decimal(14, 3)
-  unitPriceAr Decimal   @db.Decimal(12, 2)
-  costPriceAr Decimal   @db.Decimal(12, 2)
-  discountAr  Decimal   @default(0) @db.Decimal(12, 2)
-  taxAr       Decimal   @default(0) @db.Decimal(12, 2)
-  lineTotalAr Decimal   @db.Decimal(12, 2)
+  quantityAr  Decimal   
+  unitPriceAr Decimal   
+  costPriceAr Decimal   
+  discountAr  Decimal   @default(0) 
+  taxAr       Decimal   @default(0) 
+  lineTotalAr Decimal   
 
   sale    Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product?        @relation(fields: [productId], references: [id])
@@ -740,13 +574,13 @@ model Purchase {
   supplierId   String?
   warehouseId  String
   referenceNo  String         @unique
-  status       PurchaseStatus @default(ORDERED)
-  subtotalAr   Decimal        @db.Decimal(12, 2)
-  discountAr   Decimal        @default(0) @db.Decimal(12, 2)
-  taxAr        Decimal        @default(0) @db.Decimal(12, 2)
-  shippingAr   Decimal        @default(0) @db.Decimal(12, 2)
-  totalAr      Decimal        @db.Decimal(12, 2)
-  amountPaidAr Decimal        @default(0) @db.Decimal(12, 2)
+  status       String @default("ORDERED")
+  subtotalAr   Decimal        
+  discountAr   Decimal        @default(0) 
+  taxAr        Decimal        @default(0) 
+  shippingAr   Decimal        @default(0) 
+  totalAr      Decimal        
+  amountPaidAr Decimal        @default(0) 
   expectedAt   DateTime?
   receivedAt   DateTime?
   notes        String?
@@ -773,12 +607,12 @@ model PurchaseItem {
   purchaseId    String
   productId     String?
   variantId     String?
-  quantityAr    Decimal   @db.Decimal(14, 3)
-  unitCostAr    Decimal   @db.Decimal(12, 2)
-  discountAr    Decimal   @default(0) @db.Decimal(12, 2)
-  taxAr         Decimal   @default(0) @db.Decimal(12, 2)
-  lineTotalAr   Decimal   @db.Decimal(12, 2)
-  receivedQtyAr Decimal   @default(0) @db.Decimal(14, 3)
+  quantityAr    Decimal   
+  unitCostAr    Decimal   
+  discountAr    Decimal   @default(0) 
+  taxAr         Decimal   @default(0) 
+  lineTotalAr   Decimal   
+  receivedQtyAr Decimal   @default(0) 
 
   purchase Purchase        @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   product  Product?        @relation(fields: [productId], references: [id])
@@ -797,9 +631,9 @@ model Expense {
   storeId       String
   category      String
   description   String?
-  amountAr      Decimal       @db.Decimal(12, 2)
+  amountAr      Decimal       
   incurredAt    DateTime      @default(now())
-  paymentMethod PaymentMethod @default(CASH)
+  paymentMethod String @default("CASH")
   receiptUrl    String?
   createdById   String?
   createdAt     DateTime      @default(now())
@@ -823,10 +657,10 @@ model CashSession {
   openedById       String
   openedAt         DateTime  @default(now())
   closedAt         DateTime?
-  openingBalanceAr Decimal   @default(0) @db.Decimal(12, 2)
-  closingBalanceAr Decimal?  @db.Decimal(12, 2)
-  expectedCloseAr  Decimal?  @db.Decimal(12, 2)
-  differenceAr     Decimal?  @db.Decimal(12, 2)
+  openingBalanceAr Decimal   @default(0) 
+  closingBalanceAr Decimal?  
+  expectedCloseAr  Decimal?  
+  differenceAr     Decimal?  
   status           String    @default("OPEN")
   notes            String?
   closedById       String?
@@ -845,10 +679,10 @@ model CashTransaction {
   id              String                @id @default(uuid())
   cashSessionId   String
   storeId         String
-  transactionType TransactionType
-  amountAr        Decimal               @db.Decimal(12, 2)
-  source          CashTransactionSource @default(DEPOSIT)
-  method          PaymentMethod         @default(CASH)
+  transactionType String
+  amountAr        Decimal               
+  source          String @default("DEPOSIT")
+  method          String         @default("CASH")
   description     String?
   saleId          String?
   expenseId       String?
@@ -874,10 +708,10 @@ model Notification {
   id        String           @id @default(uuid())
   storeId   String
   userId    String
-  type      NotificationType
+  type      String
   title     String
   message   String
-  dataJson  Json?
+  dataJson  String?
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
@@ -894,11 +728,11 @@ model AuditLog {
   id         String      @id @default(uuid())
   storeId    String?
   userId     String?
-  action     AuditAction
+  action     String
   entity     String
   entityId   String?
-  beforeJson Json?
-  afterJson  Json?
+  beforeJson String?
+  afterJson  String?
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime    @default(now())
@@ -927,8 +761,8 @@ model Vehicle {
   color       String?
   engineNo    String?
   mileageKm   Int?
-  fuelType    FuelType    @default(PETROL)
-  vehicleType VehicleType @default(CAR)
+  fuelType    String    @default("PETROL")
+  vehicleType String @default("CAR")
   notes       String?
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
@@ -958,8 +792,8 @@ model Mechanic {
   phone         String?
   email         String?
   specialty     String?
-  hourlyRateAr  Decimal?  @db.Decimal(12, 2)
-  commissionPct Decimal?  @db.Decimal(5, 2)
+  hourlyRateAr  Decimal?  
+  commissionPct Decimal?  
   colorHex      String?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
@@ -985,8 +819,8 @@ model WorkOrder {
   customerId          String
   vehicleId           String?
   mechanicId          String?
-  status              WorkOrderStatus  @default(QUOTED)
-  priority            WorkOrderPriority @default(NORMAL)
+  status              String  @default("QUOTED")
+  priority            String @default("NORMAL")
   complaint           String?
   diagnosis           String?
   receivedAt          DateTime         @default(now())
@@ -994,14 +828,14 @@ model WorkOrder {
   estimatedDeliveryAt DateTime?
   completedAt         DateTime?
   deliveryAt          DateTime?
-  laborCostAr         Decimal          @default(0) @db.Decimal(12, 2)
-  partsCostAr         Decimal          @default(0) @db.Decimal(12, 2)
-  discountAr          Decimal          @default(0) @db.Decimal(12, 2)
-  taxAr               Decimal          @default(0) @db.Decimal(12, 2)
-  totalAr             Decimal          @default(0) @db.Decimal(12, 2)
-  paymentStatus       PaymentStatus    @default(PENDING)
-  paymentMethod       PaymentMethod?
-  amountPaidAr        Decimal          @default(0) @db.Decimal(12, 2)
+  laborCostAr         Decimal          @default(0) 
+  partsCostAr         Decimal          @default(0) 
+  discountAr          Decimal          @default(0) 
+  taxAr               Decimal          @default(0) 
+  totalAr             Decimal          @default(0) 
+  paymentStatus       String    @default("PENDING")
+  paymentMethod       String?
+  amountPaidAr        Decimal          @default(0) 
   notes               String?
   createdById         String?
   createdAt           DateTime         @default(now())
@@ -1029,14 +863,14 @@ model WorkOrder {
 model WorkOrderItem {
   id          String       @id @default(uuid())
   workOrderId String
-  type        LineItemType @default(PART)
+  type        String @default("PART")
   description String
   productId   String?
-  quantityAr  Decimal      @default(1) @db.Decimal(14, 3)
-  unitPriceAr Decimal      @db.Decimal(12, 2)
-  discountAr  Decimal      @default(0) @db.Decimal(12, 2)
-  taxAr       Decimal      @default(0) @db.Decimal(12, 2)
-  lineTotalAr Decimal      @db.Decimal(12, 2)
+  quantityAr  Decimal      @default(1) 
+  unitPriceAr Decimal      
+  discountAr  Decimal      @default(0) 
+  taxAr       Decimal      @default(0) 
+  lineTotalAr Decimal      
   createdAt   DateTime     @default(now())
 
   workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
@@ -1057,8 +891,8 @@ model Appointment {
   vehicleId   String?
   mechanicId  String?
   workOrderId String?
-  type        AppointmentType   @default(REPAIR)
-  status      AppointmentStatus @default(SCHEDULED)
+  type        String   @default("REPAIR")
+  status      String @default("SCHEDULED")
   scheduledAt DateTime
   durationMin Int               @default(60)
   title       String?
@@ -1091,9 +925,9 @@ model Lead {
   lastName            String
   phone               String?
   email               String?
-  source              LeadSource @default(WALK_IN)
-  status              LeadStatus @default(NEW)
-  valueAr             Decimal?   @db.Decimal(12, 2)
+  source              String @default("WALK_IN")
+  status              String @default("NEW")
+  valueAr             Decimal?   
   notes               String?
   assignedToId        String?
   nextFollowUpAt      DateTime?
@@ -1121,7 +955,7 @@ model Lead {
 model Interaction {
   id            String          @id @default(uuid())
   storeId       String
-  type          InteractionType @default(NOTE)
+  type          String @default("NOTE")
   subject       String?
   body          String?
   customerId    String?
@@ -1149,8 +983,8 @@ model Interaction {
 model Reminder {
   id           String         @id @default(uuid())
   storeId      String
-  type         ReminderType
-  status       ReminderStatus @default(PENDING)
+  type         String
+  status       String @default("PENDING")
   remindAt     DateTime
   title        String
   message      String?
@@ -1186,21 +1020,21 @@ model Invoice {
   id            String         @id @default(uuid())
   storeId       String
   number        String
-  docType       InvoiceDocType @default(INVOICE)
-  status        InvoiceStatus  @default(DRAFT)
+  docType       String @default("INVOICE")
+  status        String  @default("DRAFT")
   customerId    String
   vehicleId     String?
   workOrderId   String?        @unique
   issueDate     DateTime       @default(now())
   dueDate       DateTime?
   validUntil    DateTime?
-  subtotalAr    Decimal        @db.Decimal(12, 2)
-  discountAr    Decimal        @default(0) @db.Decimal(12, 2)
-  taxAr         Decimal        @default(0) @db.Decimal(12, 2)
-  totalAr       Decimal        @db.Decimal(12, 2)
-  amountPaidAr  Decimal        @default(0) @db.Decimal(12, 2)
-  paymentStatus PaymentStatus  @default(PENDING)
-  paymentMethod PaymentMethod?
+  subtotalAr    Decimal        
+  discountAr    Decimal        @default(0) 
+  taxAr         Decimal        @default(0) 
+  totalAr       Decimal        
+  amountPaidAr  Decimal        @default(0) 
+  paymentStatus String  @default("PENDING")
+  paymentMethod String?
   notes         String?
   createdById   String?
   createdAt     DateTime       @default(now())
@@ -1224,14 +1058,14 @@ model Invoice {
 model InvoiceItem {
   id          String       @id @default(uuid())
   invoiceId   String
-  type        LineItemType @default(PART)
+  type        String @default("PART")
   description String
   productId   String?
-  quantityAr  Decimal      @default(1) @db.Decimal(14, 3)
-  unitPriceAr Decimal      @db.Decimal(12, 2)
-  discountAr  Decimal      @default(0) @db.Decimal(12, 2)
-  taxAr       Decimal      @default(0) @db.Decimal(12, 2)
-  lineTotalAr Decimal      @db.Decimal(12, 2)
+  quantityAr  Decimal      @default(1) 
+  unitPriceAr Decimal      
+  discountAr  Decimal      @default(0) 
+  taxAr       Decimal      @default(0) 
+  lineTotalAr Decimal      
   createdAt   DateTime     @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)

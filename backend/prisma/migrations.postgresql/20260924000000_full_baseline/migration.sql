@@ -1,39 +1,3 @@
--- CreateEnum
-CREATE TYPE "StoreMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MANAGER', 'CASHIER', 'STOCK_MANAGER', 'ACCOUNTANT');
-
--- CreateEnum
-CREATE TYPE "SaleStatus" AS ENUM ('DRAFT', 'COMPLETED', 'CANCELLED');
-
--- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PAID', 'PARTIALLY_PAID', 'CANCELLED', 'REFUNDED');
-
--- CreateEnum
-CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CARD', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "PurchaseStatus" AS ENUM ('PENDING', 'ORDERED', 'RECEIVED', 'CANCELLED');
-
--- CreateEnum
-CREATE TYPE "MovementType" AS ENUM ('STOCK_IN', 'STOCK_OUT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'SALE', 'PURCHASE', 'TRANSFER_IN', 'TRANSFER_OUT', 'RETURN', 'EXPIRY_DAMAGE');
-
--- CreateEnum
-CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELLED', 'EXPIRED');
-
--- CreateEnum
-CREATE TYPE "BillingCycle" AS ENUM ('MONTHLY', 'QUARTERLY', 'YEARLY');
-
--- CreateEnum
-CREATE TYPE "TransactionType" AS ENUM ('IN', 'OUT');
-
--- CreateEnum
-CREATE TYPE "CashTransactionSource" AS ENUM ('SALE', 'EXPENSE', 'PURCHASE', 'DEPOSIT', 'WITHDRAWAL', 'ADJUSTMENT');
-
--- CreateEnum
-CREATE TYPE "NotificationType" AS ENUM ('LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRY_SOON', 'SALE_COMPLETED', 'PAYMENT_RECEIVED', 'SUBSCRIPTION', 'SYSTEM');
-
--- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'EXPORT', 'IMPORT');
-
 -- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
@@ -45,6 +9,12 @@ CREATE TABLE "users" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "isSuperAdmin" BOOLEAN NOT NULL DEFAULT false,
     "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+    "emailVerifyCode" TEXT,
+    "emailVerifySentAt" TIMESTAMP(3),
+    "emailVerifyExpiresAt" TIMESTAMP(3),
+    "passwordResetCode" TEXT,
+    "passwordResetSentAt" TIMESTAMP(3),
+    "passwordResetExpiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -53,9 +23,25 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
+CREATE TABLE "sessions" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "userAgent" TEXT,
+    "ip" TEXT,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "lastUsedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+    "revokedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "stores" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "sector" TEXT NOT NULL DEFAULT 'BOUTIQUE',
     "slug" TEXT,
     "description" TEXT,
     "logoUrl" TEXT,
@@ -76,15 +62,12 @@ CREATE TABLE "stores" (
     CONSTRAINT "stores_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "stores_slug_key" ON "stores"("slug");
-
 -- CreateTable
 CREATE TABLE "store_members" (
     "id" TEXT NOT NULL,
     "storeId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "role" "StoreMemberRole" NOT NULL DEFAULT 'MANAGER',
+    "role" TEXT NOT NULL DEFAULT 'MANAGER',
     "isOwner" BOOLEAN NOT NULL DEFAULT false,
     "canManageAll" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -98,14 +81,15 @@ CREATE TABLE "plans" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "priceAr" DECIMAL(12,2) NOT NULL,
-    "billingCycle" "BillingCycle" NOT NULL DEFAULT 'MONTHLY',
+    "priceAr" DECIMAL(65,30) NOT NULL,
+    "billingCycle" TEXT NOT NULL DEFAULT 'MONTHLY',
+    "durationMonths" INTEGER NOT NULL DEFAULT 1,
     "maxUsers" INTEGER NOT NULL DEFAULT 1,
     "maxProducts" INTEGER NOT NULL DEFAULT 50,
     "maxWarehouses" INTEGER NOT NULL DEFAULT 1,
     "maxCustomers" INTEGER NOT NULL DEFAULT 100,
     "maxSalesPerMonth" INTEGER,
-    "featuresJson" JSONB NOT NULL,
+    "featuresJson" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -118,18 +102,39 @@ CREATE TABLE "subscriptions" (
     "id" TEXT NOT NULL,
     "storeId" TEXT NOT NULL,
     "planId" TEXT NOT NULL,
-    "status" "SubscriptionStatus" NOT NULL DEFAULT 'TRIALING',
+    "status" TEXT NOT NULL DEFAULT 'TRIALING',
     "trialEndsAt" TIMESTAMP(3),
     "currentPeriodStart" TIMESTAMP(3) NOT NULL,
     "currentPeriodEnd" TIMESTAMP(3) NOT NULL,
-    "priceAr" DECIMAL(12,2) NOT NULL,
-    "billingCycle" "BillingCycle" NOT NULL DEFAULT 'MONTHLY',
+    "priceAr" DECIMAL(65,30) NOT NULL,
+    "billingCycle" TEXT NOT NULL DEFAULT 'MONTHLY',
     "autoRenew" BOOLEAN NOT NULL DEFAULT true,
     "cancelledAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "payments" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "planId" TEXT NOT NULL,
+    "amountAr" DECIMAL(65,30) NOT NULL,
+    "merchantReference" TEXT NOT NULL,
+    "provider" TEXT,
+    "currency" TEXT NOT NULL DEFAULT 'MGA',
+    "providerReference" TEXT,
+    "url" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "rawResponse" TEXT,
+    "paidAt" TIMESTAMP(3),
+    "failedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -174,10 +179,10 @@ CREATE TABLE "products" (
     "barcode" TEXT,
     "imageUrl" TEXT,
     "unit" TEXT NOT NULL DEFAULT 'piece',
-    "costPriceAr" DECIMAL(12,2) NOT NULL,
-    "sellingPriceAr" DECIMAL(12,2) NOT NULL,
-    "wholesalePriceAr" DECIMAL(12,2),
-    "taxRatePct" DECIMAL(5,2) NOT NULL DEFAULT 0,
+    "costPriceAr" DECIMAL(65,30) NOT NULL,
+    "sellingPriceAr" DECIMAL(65,30) NOT NULL,
+    "wholesalePriceAr" DECIMAL(65,30),
+    "taxRatePct" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "lowStockThreshold" INTEGER NOT NULL DEFAULT 5,
     "trackStock" BOOLEAN NOT NULL DEFAULT true,
     "sellByWeight" BOOLEAN NOT NULL DEFAULT false,
@@ -197,9 +202,9 @@ CREATE TABLE "product_variants" (
     "name" TEXT NOT NULL,
     "sku" TEXT,
     "barcode" TEXT,
-    "costPriceAr" DECIMAL(12,2),
-    "sellingPriceAr" DECIMAL(12,2),
-    "optionsJson" JSONB,
+    "costPriceAr" DECIMAL(65,30),
+    "sellingPriceAr" DECIMAL(65,30),
+    "optionsJson" TEXT,
     "imageUrl" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -229,11 +234,12 @@ CREATE TABLE "stocks" (
     "warehouseId" TEXT NOT NULL,
     "productId" TEXT,
     "variantId" TEXT,
-    "quantityAr" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "reservedQty" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "minStock" DECIMAL(14,3) NOT NULL DEFAULT 0,
-    "maxStock" DECIMAL(14,3),
+    "quantityAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "reservedQty" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "minStock" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "maxStock" DECIMAL(65,30),
     "location" TEXT,
+    "batchNumber" TEXT,
     "expiryDate" TIMESTAMP(3),
     "isShared" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -249,9 +255,9 @@ CREATE TABLE "stock_movements" (
     "warehouseId" TEXT NOT NULL,
     "productId" TEXT,
     "variantId" TEXT,
-    "movementType" "MovementType" NOT NULL,
-    "quantity" DECIMAL(14,3) NOT NULL,
-    "unitCostAr" DECIMAL(12,2),
+    "movementType" TEXT NOT NULL,
+    "quantity" DECIMAL(65,30) NOT NULL,
+    "unitCostAr" DECIMAL(65,30),
     "reason" TEXT,
     "referenceId" TEXT,
     "referenceType" TEXT,
@@ -293,7 +299,7 @@ CREATE TABLE "customers" (
     "gender" TEXT,
     "isVip" BOOLEAN NOT NULL DEFAULT false,
     "loyaltyPoints" INTEGER NOT NULL DEFAULT 0,
-    "debtAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "debtAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "notes" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -308,15 +314,15 @@ CREATE TABLE "sales" (
     "storeId" TEXT NOT NULL,
     "receiptNumber" TEXT NOT NULL,
     "customerId" TEXT,
-    "status" "SaleStatus" NOT NULL DEFAULT 'COMPLETED',
-    "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'PAID',
-    "subtotalAr" DECIMAL(12,2) NOT NULL,
-    "discountAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "taxAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "totalAr" DECIMAL(12,2) NOT NULL,
-    "amountPaidAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "changeAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "paymentMethod" "PaymentMethod" NOT NULL DEFAULT 'CASH',
+    "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+    "paymentStatus" TEXT NOT NULL DEFAULT 'PAID',
+    "subtotalAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalAr" DECIMAL(65,30) NOT NULL,
+    "amountPaidAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "changeAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "paymentMethod" TEXT NOT NULL DEFAULT 'CASH',
     "notes" TEXT,
     "isWholesale" BOOLEAN NOT NULL DEFAULT false,
     "createdById" TEXT,
@@ -336,12 +342,12 @@ CREATE TABLE "sale_items" (
     "saleId" TEXT NOT NULL,
     "productId" TEXT,
     "variantId" TEXT,
-    "quantityAr" DECIMAL(14,3) NOT NULL,
-    "unitPriceAr" DECIMAL(12,2) NOT NULL,
-    "costPriceAr" DECIMAL(12,2) NOT NULL,
-    "discountAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "taxAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "lineTotalAr" DECIMAL(12,2) NOT NULL,
+    "quantityAr" DECIMAL(65,30) NOT NULL,
+    "unitPriceAr" DECIMAL(65,30) NOT NULL,
+    "costPriceAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "lineTotalAr" DECIMAL(65,30) NOT NULL,
 
     CONSTRAINT "sale_items_pkey" PRIMARY KEY ("id")
 );
@@ -353,13 +359,13 @@ CREATE TABLE "purchases" (
     "supplierId" TEXT,
     "warehouseId" TEXT NOT NULL,
     "referenceNo" TEXT NOT NULL,
-    "status" "PurchaseStatus" NOT NULL DEFAULT 'ORDERED',
-    "subtotalAr" DECIMAL(12,2) NOT NULL,
-    "discountAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "taxAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "shippingAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "totalAr" DECIMAL(12,2) NOT NULL,
-    "amountPaidAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'ORDERED',
+    "subtotalAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "shippingAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalAr" DECIMAL(65,30) NOT NULL,
+    "amountPaidAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "expectedAt" TIMESTAMP(3),
     "receivedAt" TIMESTAMP(3),
     "notes" TEXT,
@@ -377,12 +383,12 @@ CREATE TABLE "purchase_items" (
     "purchaseId" TEXT NOT NULL,
     "productId" TEXT,
     "variantId" TEXT,
-    "quantityAr" DECIMAL(14,3) NOT NULL,
-    "unitCostAr" DECIMAL(12,2) NOT NULL,
-    "discountAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "taxAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "lineTotalAr" DECIMAL(12,2) NOT NULL,
-    "receivedQtyAr" DECIMAL(14,3) NOT NULL DEFAULT 0,
+    "quantityAr" DECIMAL(65,30) NOT NULL,
+    "unitCostAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "lineTotalAr" DECIMAL(65,30) NOT NULL,
+    "receivedQtyAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
 
     CONSTRAINT "purchase_items_pkey" PRIMARY KEY ("id")
 );
@@ -393,9 +399,9 @@ CREATE TABLE "expenses" (
     "storeId" TEXT NOT NULL,
     "category" TEXT NOT NULL,
     "description" TEXT,
-    "amountAr" DECIMAL(12,2) NOT NULL,
+    "amountAr" DECIMAL(65,30) NOT NULL,
     "incurredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "paymentMethod" "PaymentMethod" NOT NULL DEFAULT 'CASH',
+    "paymentMethod" TEXT NOT NULL DEFAULT 'CASH',
     "receiptUrl" TEXT,
     "createdById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -411,10 +417,10 @@ CREATE TABLE "cash_sessions" (
     "openedById" TEXT NOT NULL,
     "openedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "closedAt" TIMESTAMP(3),
-    "openingBalanceAr" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "closingBalanceAr" DECIMAL(12,2),
-    "expectedCloseAr" DECIMAL(12,2),
-    "differenceAr" DECIMAL(12,2),
+    "openingBalanceAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "closingBalanceAr" DECIMAL(65,30),
+    "expectedCloseAr" DECIMAL(65,30),
+    "differenceAr" DECIMAL(65,30),
     "status" TEXT NOT NULL DEFAULT 'OPEN',
     "notes" TEXT,
     "closedById" TEXT,
@@ -428,10 +434,10 @@ CREATE TABLE "cash_transactions" (
     "id" TEXT NOT NULL,
     "cashSessionId" TEXT NOT NULL,
     "storeId" TEXT NOT NULL,
-    "transactionType" "TransactionType" NOT NULL,
-    "amountAr" DECIMAL(12,2) NOT NULL,
-    "source" "CashTransactionSource" NOT NULL DEFAULT 'DEPOSIT',
-    "method" "PaymentMethod" NOT NULL DEFAULT 'CASH',
+    "transactionType" TEXT NOT NULL,
+    "amountAr" DECIMAL(65,30) NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'DEPOSIT',
+    "method" TEXT NOT NULL DEFAULT 'CASH',
     "description" TEXT,
     "saleId" TEXT,
     "expenseId" TEXT,
@@ -447,10 +453,10 @@ CREATE TABLE "notifications" (
     "id" TEXT NOT NULL,
     "storeId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "type" "NotificationType" NOT NULL,
+    "type" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
-    "dataJson" JSONB,
+    "dataJson" TEXT,
     "isRead" BOOLEAN NOT NULL DEFAULT false,
     "readAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -463,11 +469,11 @@ CREATE TABLE "audit_logs" (
     "id" TEXT NOT NULL,
     "storeId" TEXT,
     "userId" TEXT,
-    "action" "AuditAction" NOT NULL,
+    "action" TEXT NOT NULL,
     "entity" TEXT NOT NULL,
     "entityId" TEXT,
-    "beforeJson" JSONB,
-    "afterJson" JSONB,
+    "beforeJson" TEXT,
+    "afterJson" TEXT,
     "ipAddress" TEXT,
     "userAgent" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -475,11 +481,242 @@ CREATE TABLE "audit_logs" (
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "vehicles" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "customerId" TEXT NOT NULL,
+    "plateNumber" TEXT NOT NULL,
+    "make" TEXT,
+    "model" TEXT,
+    "year" INTEGER,
+    "vin" TEXT,
+    "color" TEXT,
+    "engineNo" TEXT,
+    "mileageKm" INTEGER,
+    "fuelType" TEXT NOT NULL DEFAULT 'PETROL',
+    "vehicleType" TEXT NOT NULL DEFAULT 'CAR',
+    "notes" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "vehicles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "mechanics" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "userId" TEXT,
+    "fullName" TEXT NOT NULL,
+    "phone" TEXT,
+    "email" TEXT,
+    "specialty" TEXT,
+    "hourlyRateAr" DECIMAL(65,30),
+    "commissionPct" DECIMAL(65,30),
+    "colorHex" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "mechanics_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "work_orders" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "orderNumber" TEXT NOT NULL,
+    "customerId" TEXT NOT NULL,
+    "vehicleId" TEXT,
+    "mechanicId" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'QUOTED',
+    "priority" TEXT NOT NULL DEFAULT 'NORMAL',
+    "complaint" TEXT,
+    "diagnosis" TEXT,
+    "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "startedAt" TIMESTAMP(3),
+    "estimatedDeliveryAt" TIMESTAMP(3),
+    "completedAt" TIMESTAMP(3),
+    "deliveryAt" TIMESTAMP(3),
+    "laborCostAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "partsCostAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "paymentStatus" TEXT NOT NULL DEFAULT 'PENDING',
+    "paymentMethod" TEXT,
+    "amountPaidAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "notes" TEXT,
+    "createdById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "work_orders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "work_order_items" (
+    "id" TEXT NOT NULL,
+    "workOrderId" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'PART',
+    "description" TEXT NOT NULL,
+    "productId" TEXT,
+    "quantityAr" DECIMAL(65,30) NOT NULL DEFAULT 1,
+    "unitPriceAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "lineTotalAr" DECIMAL(65,30) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "work_order_items_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "appointments" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "customerId" TEXT NOT NULL,
+    "vehicleId" TEXT,
+    "mechanicId" TEXT,
+    "workOrderId" TEXT,
+    "type" TEXT NOT NULL DEFAULT 'REPAIR',
+    "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
+    "scheduledAt" TIMESTAMP(3) NOT NULL,
+    "durationMin" INTEGER NOT NULL DEFAULT 60,
+    "title" TEXT,
+    "notes" TEXT,
+    "createdById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "appointments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "leads" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
+    "phone" TEXT,
+    "email" TEXT,
+    "source" TEXT NOT NULL DEFAULT 'WALK_IN',
+    "status" TEXT NOT NULL DEFAULT 'NEW',
+    "valueAr" DECIMAL(65,30),
+    "notes" TEXT,
+    "assignedToId" TEXT,
+    "nextFollowUpAt" TIMESTAMP(3),
+    "firstContactAt" TIMESTAMP(3),
+    "lastContactAt" TIMESTAMP(3),
+    "convertedCustomerId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "leads_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "interactions" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'NOTE',
+    "subject" TEXT,
+    "body" TEXT,
+    "customerId" TEXT,
+    "leadId" TEXT,
+    "workOrderId" TEXT,
+    "performedById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "interactions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "reminders" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "remindAt" TIMESTAMP(3) NOT NULL,
+    "title" TEXT NOT NULL,
+    "message" TEXT,
+    "customerId" TEXT,
+    "leadId" TEXT,
+    "vehicleId" TEXT,
+    "workOrderId" TEXT,
+    "invoiceId" TEXT,
+    "assignedToId" TEXT,
+    "completedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "reminders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "invoices" (
+    "id" TEXT NOT NULL,
+    "storeId" TEXT NOT NULL,
+    "number" TEXT NOT NULL,
+    "docType" TEXT NOT NULL DEFAULT 'INVOICE',
+    "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "customerId" TEXT NOT NULL,
+    "vehicleId" TEXT,
+    "workOrderId" TEXT,
+    "issueDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dueDate" TIMESTAMP(3),
+    "validUntil" TIMESTAMP(3),
+    "subtotalAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalAr" DECIMAL(65,30) NOT NULL,
+    "amountPaidAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "paymentStatus" TEXT NOT NULL DEFAULT 'PENDING',
+    "paymentMethod" TEXT,
+    "notes" TEXT,
+    "createdById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "invoice_items" (
+    "id" TEXT NOT NULL,
+    "invoiceId" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'PART',
+    "description" TEXT NOT NULL,
+    "productId" TEXT,
+    "quantityAr" DECIMAL(65,30) NOT NULL DEFAULT 1,
+    "unitPriceAr" DECIMAL(65,30) NOT NULL,
+    "discountAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "taxAr" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "lineTotalAr" DECIMAL(65,30) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "invoice_items_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE INDEX "users_email_idx" ON "users"("email");
+
+-- CreateIndex
+CREATE INDEX "sessions_userId_idx" ON "sessions"("userId");
+
+-- CreateIndex
+CREATE INDEX "sessions_tokenHash_idx" ON "sessions"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "sessions_expiresAt_idx" ON "sessions"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "stores_slug_key" ON "stores"("slug");
 
 -- CreateIndex
 CREATE INDEX "stores_name_idx" ON "stores"("name");
@@ -501,6 +738,18 @@ CREATE INDEX "subscriptions_planId_idx" ON "subscriptions"("planId");
 
 -- CreateIndex
 CREATE INDEX "subscriptions_status_idx" ON "subscriptions"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "payments_merchantReference_key" ON "payments"("merchantReference");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "payments_providerReference_key" ON "payments"("providerReference");
+
+-- CreateIndex
+CREATE INDEX "payments_storeId_idx" ON "payments"("storeId");
+
+-- CreateIndex
+CREATE INDEX "payments_status_idx" ON "payments"("status");
 
 -- CreateIndex
 CREATE INDEX "categories_parentId_idx" ON "categories"("parentId");
@@ -637,6 +886,87 @@ CREATE INDEX "audit_logs_storeId_createdAt_idx" ON "audit_logs"("storeId", "crea
 -- CreateIndex
 CREATE INDEX "audit_logs_entity_entityId_idx" ON "audit_logs"("entity", "entityId");
 
+-- CreateIndex
+CREATE INDEX "vehicles_storeId_customerId_idx" ON "vehicles"("storeId", "customerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "vehicles_storeId_plateNumber_key" ON "vehicles"("storeId", "plateNumber");
+
+-- CreateIndex
+CREATE INDEX "mechanics_storeId_idx" ON "mechanics"("storeId");
+
+-- CreateIndex
+CREATE INDEX "work_orders_storeId_status_idx" ON "work_orders"("storeId", "status");
+
+-- CreateIndex
+CREATE INDEX "work_orders_customerId_idx" ON "work_orders"("customerId");
+
+-- CreateIndex
+CREATE INDEX "work_orders_vehicleId_idx" ON "work_orders"("vehicleId");
+
+-- CreateIndex
+CREATE INDEX "work_orders_storeId_receivedAt_idx" ON "work_orders"("storeId", "receivedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "work_orders_storeId_orderNumber_key" ON "work_orders"("storeId", "orderNumber");
+
+-- CreateIndex
+CREATE INDEX "work_order_items_workOrderId_idx" ON "work_order_items"("workOrderId");
+
+-- CreateIndex
+CREATE INDEX "appointments_storeId_scheduledAt_idx" ON "appointments"("storeId", "scheduledAt");
+
+-- CreateIndex
+CREATE INDEX "appointments_storeId_mechanicId_idx" ON "appointments"("storeId", "mechanicId");
+
+-- CreateIndex
+CREATE INDEX "appointments_storeId_status_idx" ON "appointments"("storeId", "status");
+
+-- CreateIndex
+CREATE INDEX "leads_storeId_status_idx" ON "leads"("storeId", "status");
+
+-- CreateIndex
+CREATE INDEX "leads_storeId_assignedToId_idx" ON "leads"("storeId", "assignedToId");
+
+-- CreateIndex
+CREATE INDEX "interactions_storeId_createdAt_idx" ON "interactions"("storeId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "interactions_customerId_idx" ON "interactions"("customerId");
+
+-- CreateIndex
+CREATE INDEX "interactions_leadId_idx" ON "interactions"("leadId");
+
+-- CreateIndex
+CREATE INDEX "reminders_storeId_status_remindAt_idx" ON "reminders"("storeId", "status", "remindAt");
+
+-- CreateIndex
+CREATE INDEX "reminders_storeId_type_idx" ON "reminders"("storeId", "type");
+
+-- CreateIndex
+CREATE INDEX "reminders_customerId_idx" ON "reminders"("customerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "invoices_workOrderId_key" ON "invoices"("workOrderId");
+
+-- CreateIndex
+CREATE INDEX "invoices_storeId_docType_status_idx" ON "invoices"("storeId", "docType", "status");
+
+-- CreateIndex
+CREATE INDEX "invoices_customerId_idx" ON "invoices"("customerId");
+
+-- CreateIndex
+CREATE INDEX "invoices_storeId_issueDate_idx" ON "invoices"("storeId", "issueDate");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "invoices_storeId_number_key" ON "invoices"("storeId", "number");
+
+-- CreateIndex
+CREATE INDEX "invoice_items_invoiceId_idx" ON "invoice_items"("invoiceId");
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
 -- AddForeignKey
 ALTER TABLE "store_members" ADD CONSTRAINT "store_members_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -648,6 +978,12 @@ ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_storeId_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_planId_fkey" FOREIGN KEY ("planId") REFERENCES "plans"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "payments" ADD CONSTRAINT "payments_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "payments" ADD CONSTRAINT "payments_planId_fkey" FOREIGN KEY ("planId") REFERENCES "plans"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "categories" ADD CONSTRAINT "categories_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -774,4 +1110,121 @@ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_storeId_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "mechanics" ADD CONSTRAINT "mechanics_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "mechanics" ADD CONSTRAINT "mechanics_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_orders" ADD CONSTRAINT "work_orders_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_orders" ADD CONSTRAINT "work_orders_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_orders" ADD CONSTRAINT "work_orders_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "vehicles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_orders" ADD CONSTRAINT "work_orders_mechanicId_fkey" FOREIGN KEY ("mechanicId") REFERENCES "mechanics"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_orders" ADD CONSTRAINT "work_orders_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_order_items" ADD CONSTRAINT "work_order_items_workOrderId_fkey" FOREIGN KEY ("workOrderId") REFERENCES "work_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "work_order_items" ADD CONSTRAINT "work_order_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "vehicles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_mechanicId_fkey" FOREIGN KEY ("mechanicId") REFERENCES "mechanics"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_workOrderId_fkey" FOREIGN KEY ("workOrderId") REFERENCES "work_orders"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "leads" ADD CONSTRAINT "leads_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "leads" ADD CONSTRAINT "leads_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "leads" ADD CONSTRAINT "leads_convertedCustomerId_fkey" FOREIGN KEY ("convertedCustomerId") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "interactions" ADD CONSTRAINT "interactions_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "interactions" ADD CONSTRAINT "interactions_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "interactions" ADD CONSTRAINT "interactions_leadId_fkey" FOREIGN KEY ("leadId") REFERENCES "leads"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "interactions" ADD CONSTRAINT "interactions_workOrderId_fkey" FOREIGN KEY ("workOrderId") REFERENCES "work_orders"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "interactions" ADD CONSTRAINT "interactions_performedById_fkey" FOREIGN KEY ("performedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_leadId_fkey" FOREIGN KEY ("leadId") REFERENCES "leads"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "vehicles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_workOrderId_fkey" FOREIGN KEY ("workOrderId") REFERENCES "work_orders"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "invoices"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "vehicles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_workOrderId_fkey" FOREIGN KEY ("workOrderId") REFERENCES "work_orders"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
