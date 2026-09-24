@@ -22,9 +22,9 @@ export async function listSuppliers(
   if (query.search) {
     const q = query.search.trim();
     where.OR = [
-      { name: { contains: q, mode: 'insensitive' } },
-      { contactName: { contains: q, mode: 'insensitive' } },
-      { phone: { contains: q, mode: 'insensitive' } },
+      { name: { contains: q } },
+      { contactName: { contains: q } },
+      { phone: { contains: q } },
     ];
   }
   if (query.activeOnly) where.isActive = true;

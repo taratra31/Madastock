@@ -29,16 +29,16 @@ export async function listVehicles(
   if (query.search) {
     const q = query.search.trim();
     where.OR = [
-      { plateNumber: { contains: q, mode: 'insensitive' } },
-      { make: { contains: q, mode: 'insensitive' } },
-      { model: { contains: q, mode: 'insensitive' } },
-      { engineNo: { contains: q, mode: 'insensitive' } },
-      { vin: { contains: q, mode: 'insensitive' } },
+      { plateNumber: { contains: q } },
+      { make: { contains: q } },
+      { model: { contains: q } },
+      { engineNo: { contains: q } },
+      { vin: { contains: q } },
       {
         customer: {
           OR: [
-            { firstName: { contains: q, mode: 'insensitive' } },
-            { lastName: { contains: q, mode: 'insensitive' } },
+            { firstName: { contains: q } },
+            { lastName: { contains: q } },
             { phone: { contains: q } },
           ],
         },

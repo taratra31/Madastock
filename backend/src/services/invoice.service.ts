@@ -57,7 +57,7 @@ export async function listInvoices(
   }
   if (query.search) {
     const q = query.search.trim();
-    where.OR = [{ number: { contains: q, mode: 'insensitive' } }, { customer: { lastName: { contains: q, mode: 'insensitive' } } }];
+    where.OR = [{ number: { contains: q } }, { customer: { lastName: { contains: q } } }];
   }
 
   const [total, invoices] = await Promise.all([

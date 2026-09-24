@@ -14,36 +14,44 @@ export async function listProducts(storeId: string, query: {
   const where: Record<string, unknown> = { storeId, isActive: true, deletedAt: null };
   if (query.search) {
     where.OR = [
-      { name: { contains: query.search, mode: 'insensitive' } },
-      { sku: { contains: query.search, mode: 'insensitive' } },
-      { barcode: { contains: query.search, mode: 'insensitive' } },
+      { name: { contains: query.search } },
+      { sku: { contains: query.search } },
+      { barcode: { contains: query.search } },
     ];
   }
   if (query.categoryId) {
     where.categoryId = query.categoryId;
   }
 
-  const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: {
-        category: { select: { id: true, name: true } },
-        brand: { select: { id: true, name: true } },
-        stocks: {
-          where: { warehouse: { isActive: true } },
-          select: { quantityAr: true, reservedQty: true },
-        },
-        _count: { select: { variants: true } },
+  const all = await prisma.product.findMany({
+    where,
+    include: {
+      category: { select: { id: true, name: true } },
+      brand: { select: { id: true, name: true } },
+      stocks: {
+        where: { warehouse: { isActive: true } },
+        select: { quantityAr: true, reservedQty: true },
       },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-    }),
-    prisma.product.count({ where }),
-  ]);
+      _count: { select: { variants: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const q = (query.search ?? '').trim().toLowerCase();
+  let rows = all;
+  if (q) {
+    rows = all.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      (p.sku ?? '').toLowerCase().includes(q) ||
+      (p.barcode ?? '').toLowerCase().includes(q)
+    );
+  }
+
+  const total = rows.length;
+  const paged = rows.slice(skip, skip + limit);
 
   return {
-    data: products.map(({ stocks, ...p }) => ({
+    data: paged.map(({ stocks, ...p }) => ({
       ...p,
       totalStock: stocks.reduce((s, st) => s + Number(st.quantityAr) - Number(st.reservedQty), 0),
       costPriceAr: Number(p.costPriceAr),
@@ -107,6 +115,7 @@ export async function createProduct(storeId: string, input: {
   categoryId?: string;
   brandId?: string;
   sku?: string;
+  barcode?: string;
   imageUrl?: string;
   unit?: string;
   costPriceAr: number;
@@ -138,6 +147,7 @@ export async function createProduct(storeId: string, input: {
       categoryId: input.categoryId,
       brandId: input.brandId,
       sku: input.sku,
+      barcode: input.barcode ?? null,
       imageUrl: input.imageUrl,
       unit: input.unit,
       costPriceAr: input.costPriceAr,

@@ -232,8 +232,8 @@ export async function listSales(
   if (query.search) {
     const q = query.search.trim();
     where.OR = [
-      { receiptNumber: { contains: q, mode: 'insensitive' } },
-      { customer: { fullName: { contains: q, mode: 'insensitive' } } },
+      { receiptNumber: { contains: q } },
+      { customer: { fullName: { contains: q } } },
     ];
   }
   if (query.from || query.to) {

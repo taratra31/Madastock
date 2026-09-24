@@ -25,10 +25,10 @@ export async function listCustomers(
   if (query.search) {
     const q = query.search.trim();
     where.OR = [
-      { firstName: { contains: q, mode: 'insensitive' } },
-      { lastName: { contains: q, mode: 'insensitive' } },
+      { firstName: { contains: q } },
+      { lastName: { contains: q } },
       { phone: { contains: q } },
-      { email: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q } },
     ];
   }
 
