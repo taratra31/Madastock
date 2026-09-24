@@ -6,12 +6,27 @@ dns.setDefaultResultOrder('ipv4first');
 
 export const mailerConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
 
-const transporter = mailerConfigured
+function resolveSmtpHost(host: string): { host: string; servername: string } {
+  const lookupSync = (dns as unknown as {
+    lookupSync: (hostname: string, options: { family: number }) => { address: string };
+  }).lookupSync;
+  try {
+    const ipv4 = lookupSync(host, { family: 4 }).address;
+    return { host: ipv4, servername: host };
+  } catch {
+    return { host, servername: host };
+  }
+}
+
+const smtpEndpoint = mailerConfigured ? resolveSmtpHost(env.SMTP_HOST) : null;
+
+const transporter = mailerConfigured && smtpEndpoint
   ? nodemailer.createTransport({
-      host: env.SMTP_HOST,
+      host: smtpEndpoint.host,
       port: env.SMTP_PORT,
       secure: env.SMTP_PORT === 465,
       auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+      tls: smtpEndpoint.host === smtpEndpoint.servername ? undefined : { servername: smtpEndpoint.servername },
     })
   : null;
 
