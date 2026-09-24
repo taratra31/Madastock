@@ -6,13 +6,15 @@ services:
     healthCheckPath: /api/v1/health
     buildCommand: cd frontend && npm ci --include=dev && npm run build && cd ../backend && npm ci --include=dev && npm run build && sh -c 'case "$DATABASE_URL" in postgres*|postgresql*) cp prisma/schema.postgresql.prisma prisma/schema.prisma && rm -rf prisma/migrations && cp -r prisma/migrations.postgresql prisma/migrations ;; esac' && npx prisma generate
     startCommand: cd backend && npx prisma migrate deploy && sh -c 'if [ "$DATA_SYNC" = "1" ]; then node scripts/sync-sqlite-to-pg.mjs; fi' && node dist/server.js
-    # NOTE: production DATABASE_URL is set via the Render service env var (sync:false
-    # below is informational only). SQLite local dev stays on prisma/schema.prisma.
+    # NOTE: production DATABASE_URL lives ONLY on the Render service env var (Neon Postgres,
+    # value never committed). Keep sync:false so blueprint deploys never clobber it back to
+    # file:./dev.db. SQLite here is purely a placeholder/documentation.
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
         value: file:./dev.db
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
