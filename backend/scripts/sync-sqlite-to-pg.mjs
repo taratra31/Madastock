@@ -55,7 +55,7 @@ async function main() {
     if (visited.has(t)) return;
     if (visiting.has(t)) throw new Error(`FK cycle at ${t}`);
     visiting.add(t);
-    for (const [c, p] of edges) if (c === t) visit(p);
+    for (const [c, p] of edges) if (c === t && c !== p) visit(p);
     visiting.delete(t);
     visited.add(t);
     order.push(t);
@@ -107,7 +107,7 @@ async function main() {
         : '';
       let ok = 0;
       let failed = 0;
-      for (const row of rows) {
+      const buildInsert = (row) => {
         const cols = [];
         const vals = [];
         for (const c of meta) {
@@ -117,20 +117,38 @@ async function main() {
           cols.push(`"${c.column_name}"`);
           vals.push(value);
         }
-        if (!cols.length) continue;
+        if (!cols.length) return null;
         const placeholders = vals.map((_, i) => `$${i + 1}`).join(',');
-        try {
-          await pg.query(
-            `INSERT INTO "${table}" (${cols.join(',')}) VALUES (${placeholders})${conflict}`,
-            vals,
-          );
-          ok++;
-        } catch (e) {
-          failed++;
-          const key = pkCols.length ? row[pkCols[0]] : '(no pk)';
-          console.error(`  !! ${table} ${String(key).slice(0, 40)}: ${e.message.split('\n')[0]}`);
+        return {
+          sql: `INSERT INTO "${table}" (${cols.join(',')}) VALUES (${placeholders})${conflict}`,
+          vals,
+        };
+      };
+      // Self-referencing FKs (ex: categories.parentId) need parents inserted
+      // first: retry deferred rows once earlier ones already exist.
+      let pending = rows;
+      for (let pass = 0; pending.length && pass < 10; pass++) {
+        const retry = [];
+        for (const row of pending) {
+          const ins = buildInsert(row);
+          if (!ins) continue;
+          try {
+            await pg.query(ins.sql, ins.vals);
+            ok++;
+          } catch (e) {
+            if (e?.code === '23503') {
+              retry.push(row);
+            } else {
+              failed++;
+              const key = pkCols.length ? row[pkCols[0]] : '(no pk)';
+              console.error(`  !! ${table} ${String(key).slice(0, 40)}: ${e.message.split('\n')[0]}`);
+            }
+          }
         }
+        if (retry.length === pending.length) break; // no progress is possible
+        pending = retry;
       }
+      failed += pending.length;
       totalOk += ok;
       console.log(`- ${table}: ${ok} ok, ${failed} failed / ${rows.length} source`);
     }
