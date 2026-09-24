@@ -66,7 +66,7 @@ export async function createStore(userId: string, input: CreateStoreInput) {
 
 export async function listStores(userId: string) {
   const memberships = await prisma.storeMember.findMany({
-    where: { userId },
+    where: { userId, store: { active: true } },
     select: {
       id: true,
       role: true,

@@ -28,6 +28,7 @@ const SAFE_USER_SELECT = {
   emailVerified: true,
   createdAt: true,
   memberships: {
+    where: { store: { active: true } },
     select: {
       id: true,
       storeId: true,
@@ -297,6 +298,7 @@ export async function getMe(userId: string) {
       isActive: true,
       createdAt: true,
       memberships: {
+        where: { store: { active: true } },
         select: {
           id: true,
           storeId: true,
