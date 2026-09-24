@@ -66,9 +66,9 @@ export async function register(input: RegisterInput) {
 
   try {
     await sendVerifyCodeEmail(input.email, code);
-  } catch (error) {
+  } catch {
     await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
-    throw badRequest(`Impossible d'envoyer le code de vérification par e-mail (${(error as Error).message})`);
+    throw badRequest("Impossible d'envoyer le code de vérification par e-mail");
   }
 
   return {
@@ -167,8 +167,8 @@ export async function resendCode(email: string) {
 
   try {
     await sendVerifyCodeEmail(email, code);
-  } catch (error) {
-    throw badRequest(`Impossible d'envoyer le code de vérification par e-mail (${(error as Error).message})`);
+  } catch {
+    throw badRequest("Impossible d'envoyer le code de vérification par e-mail");
   }
 
   return { message: 'Un nouveau code a été envoyé.' };

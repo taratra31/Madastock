@@ -103,7 +103,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   console.error('Unhandled error:', err);
   return res
     .status(500)
-    .json({ error: env.NODE_ENV === 'production' ? `DIAG:${err.name}:${err.message}` : err.message });
+    .json({ error: env.NODE_ENV === 'production' ? 'Internal server error' : err.message });
 });
 
 export default app;

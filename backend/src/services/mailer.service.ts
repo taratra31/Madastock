@@ -1,5 +1,8 @@
 import nodemailer from 'nodemailer';
+import dns from 'node:dns';
 import { env } from '../config/env';
+
+dns.setDefaultResultOrder('ipv4first');
 
 export const mailerConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
 
