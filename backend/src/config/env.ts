@@ -19,6 +19,8 @@ const envSchema = z.object({
   SMTP_PORT: z.string().default('587').transform(Number),
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
+  EMAIL_PROVIDER: z.enum(['smtp', 'brevo', 'resend']).default('smtp'),
+  EMAIL_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().default('MadaStock <noreply@madastock.mg>'),
   VERIFY_CODE_TTL_MINUTES: z.string().default('15').transform(Number),
 });
