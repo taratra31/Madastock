@@ -6,7 +6,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/'];
+const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/'];
 
 let refreshPromise: Promise<boolean> | null = null;
 

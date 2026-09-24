@@ -216,4 +216,69 @@ describe('Auth', () => {
     const res = await request(app).get('/api/v1/auth/me');
     expect(res.status).toBe(401);
   });
+
+  it('forgot-password : envoie un code pour un compte vérifié', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(verifiedUser);
+    prismaMock.user.update.mockResolvedValue({ ...verifiedUser, passwordResetCode: '123456' });
+
+    const res = await request(app).post('/api/v1/auth/forgot-password').send({
+      email: 'test@madastock.mg',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('code de réinitialisation a été envoyé');
+  });
+
+  it('forgot-password : ne révèle pas l’existence du compte (retour générique)', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    const res = await request(app).post('/api/v1/auth/forgot-password').send({
+      email: 'inconnu@madastock.mg',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('Si cet e-mail existe');
+  });
+
+  it('reset-password : réinitialise avec un code valide', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      ...verifiedUser,
+      passwordResetCode: '123456',
+      passwordResetExpiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    });
+    prismaMock.user.update.mockResolvedValue({ ...verifiedUser, passwordResetCode: null });
+    prismaMock.session.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app).post('/api/v1/auth/reset-password').send({
+      email: 'test@madastock.mg',
+      code: '123456',
+      newPassword: 'nouveaupass',
+    });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ passwordHash: expect.any(String), passwordResetCode: null }),
+      }),
+    );
+    expect(prismaMock.session.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ revokedAt: null }) }),
+    );
+  });
+
+  it('reset-password : refuse un code incorrect', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      ...verifiedUser,
+      passwordResetCode: '123456',
+      passwordResetExpiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    });
+
+    const res = await request(app).post('/api/v1/auth/reset-password').send({
+      email: 'test@madastock.mg',
+      code: '000000',
+      newPassword: 'nouveaupass',
+    });
+
+    expect(res.status).toBe(401);
+  });
 });

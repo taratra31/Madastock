@@ -87,6 +87,37 @@ async function sendByResend(to: string, subject: string, text: string, html: str
   }
 }
 
+export async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
+  const subject = 'MadaStock — Réinitialisation du mot de passe';
+  const text = `Votre code de réinitialisation MadaStock est : ${code}. Il expire dans ${env.VERIFY_CODE_TTL_MINUTES} minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+  <h2 style="color:#16a34a;margin:0 0 12px">MadaStock</h2>
+  <p>Votre code de réinitialisation du mot de passe est :</p>
+  <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;padding:12px;text-align:center;border-radius:8px">${code}</p>
+  <p>Il expire dans ${env.VERIFY_CODE_TTL_MINUTES} minutes. Saisissez-le sur la page « Nouveau mot de passe » pour définir un nouveau mot de passe.</p>
+  <p style="color:#94a3b8;font-size:12px">Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail.</p>
+</div>`;
+
+  if (env.EMAIL_PROVIDER === 'brevo') {
+    await sendByBrevo(to, subject, text, html);
+    return;
+  }
+  if (env.EMAIL_PROVIDER === 'resend') {
+    await sendByResend(to, subject, text, html);
+    return;
+  }
+
+  if (!smtpTransporter) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('E-mail non configuré (EMAIL_PROVIDER/clef API ou SMTP manquant)');
+    }
+    console.warn(`[mailer] E-mail non configuré — code de réinitialisation pour ${to} : ${code} (dev)`);
+    return;
+  }
+
+  await smtpTransporter.sendMail({ from: env.MAIL_FROM, to, subject, text, html });
+}
+
 export async function sendVerifyCodeEmail(to: string, code: string): Promise<void> {
   const subject = 'MadaStock — Code de vérification';
   const text = `Votre code de vérification MadaStock est : ${code}. Il expire dans ${env.VERIFY_CODE_TTL_MINUTES} minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`;

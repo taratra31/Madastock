@@ -5,8 +5,14 @@ import { env } from '../config/env';
 import prisma from '../lib/prisma';
 import type { JwtPayload } from '../types/express';
 import { badRequest, conflict, tooManyRequests, unauthorized } from '../utils/httpError';
-import { sendVerifyCodeEmail } from './mailer.service';
-import type { LoginInput, RegisterInput, VerifyEmailInput } from '../validators/auth.validator';
+import { sendPasswordResetEmail, sendVerifyCodeEmail } from './mailer.service';
+import type {
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+  VerifyEmailInput,
+} from '../validators/auth.validator';
 
 const BCRYPT_ROUNDS = 10;
 const CODE_TTL_MS = env.VERIFY_CODE_TTL_MINUTES * 60 * 1000;
@@ -248,6 +254,69 @@ export async function logout(refreshToken?: string): Promise<void> {
     where: { tokenHash: hashToken(refreshToken), revokedAt: null },
     data: { revokedAt: new Date() },
   });
+}
+
+export async function requestPasswordReset(input: ForgotPasswordInput) {
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  if (!user || !user.isActive || !user.emailVerified) {
+    return { message: 'Si cet e-mail existe, un code de réinitialisation a été envoyé.' };
+  }
+
+  if (user.passwordResetSentAt && user.passwordResetSentAt.getTime() > Date.now() - RESEND_COOLDOWN_MS) {
+    throw tooManyRequests('Veuillez patienter avant de demander un nouveau code');
+  }
+
+  const code = generateCode();
+  const now = new Date();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordResetCode: code,
+      passwordResetSentAt: now,
+      passwordResetExpiresAt: new Date(now.getTime() + CODE_TTL_MS),
+    },
+  });
+
+  try {
+    await sendPasswordResetEmail(user.email, code);
+  } catch {
+    throw badRequest("Impossible d'envoyer le code de réinitialisation par e-mail");
+  }
+
+  return { message: 'Un code de réinitialisation a été envoyé.' };
+}
+
+export async function resetPassword(input: ResetPasswordInput) {
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  if (!user || !user.passwordResetCode) {
+    throw unauthorized('Code invalide ou expiré');
+  }
+
+  if (user.passwordResetExpiresAt && user.passwordResetExpiresAt.getTime() < Date.now()) {
+    throw unauthorized('Code expiré, demandez un nouveau code');
+  }
+
+  if (user.passwordResetCode !== input.code) {
+    throw unauthorized('Code invalide');
+  }
+
+  const passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      passwordResetCode: null,
+      passwordResetSentAt: null,
+      passwordResetExpiresAt: null,
+    },
+  });
+
+  await prisma.session.updateMany({
+    where: { userId: user.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+
+  return { message: 'Mot de passe réinitialisé. Vous pouvez vous connecter.' };
 }
 
 export async function resendCode(email: string) {

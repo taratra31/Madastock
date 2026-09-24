@@ -8,11 +8,20 @@ import {
   logout as svcLogout,
   refreshSession,
   register as svcRegister,
+  requestPasswordReset as svcRequestPasswordReset,
   resendCode as svcResendCode,
+  resetPassword as svcResetPassword,
   verifyEmail as svcVerifyEmail,
   type SessionMeta,
 } from '../services/auth.service';
-import { loginSchema, registerSchema, resendCodeSchema, verifyEmailSchema } from '../validators/auth.validator';
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resendCodeSchema,
+  resetPasswordSchema,
+  verifyEmailSchema,
+} from '../validators/auth.validator';
 import { env } from '../config/env';
 
 const ACCESS_COOKIE = 'ms_access';
@@ -119,4 +128,24 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   await svcLogout(refreshToken);
   clearAuthCookies(res);
   res.status(204).send();
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw badRequest('Données invalides', parsed.error.flatten());
+  }
+
+  const result = await svcRequestPasswordReset(parsed.data);
+  res.status(200).json(result);
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw badRequest('Données invalides', parsed.error.flatten());
+  }
+
+  const result = await svcResetPassword(parsed.data);
+  res.status(200).json(result);
 });
