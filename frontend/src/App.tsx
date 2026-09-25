@@ -24,6 +24,14 @@ import Interactions from './pages/Interactions';
 import Reminders from './pages/Reminders';
 import Billing from './pages/Billing';
 import Sales from './pages/Sales';
+import Faq from './pages/Faq';
+import Pricing from './pages/Pricing';
+import AdminOverview from './pages/AdminOverview';
+import AdminStores from './pages/AdminStores';
+import AdminUsers from './pages/AdminUsers';
+import AdminSubscriptions from './pages/AdminSubscriptions';
+import AdminPayments from './pages/AdminPayments';
+import AdminRoute from './components/AdminRoute';
 import AppLayout from './layouts/AppLayout';
 
 function App() {
@@ -36,6 +44,8 @@ function App() {
 <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/faq" element={<Faq />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="/stores" element={<Stores />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
@@ -55,6 +65,13 @@ function App() {
           <Route path="/interactions" element={<Interactions />} />
           <Route path="/reminders" element={<Reminders />} />
           <Route path="/billing" element={<Billing />} />
+          <Route path="/admin" element={<AdminRoute />}>
+            <Route index element={<AdminOverview />} />
+            <Route path="stores" element={<AdminStores />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="subscriptions" element={<AdminSubscriptions />} />
+            <Route path="payments" element={<AdminPayments />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

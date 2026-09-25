@@ -70,3 +70,33 @@ export const itemTypeLabels: Record<string, string> = {
   PART: 'Pièce / Produit',
   OTHER: 'Autre',
 };
+
+export const subscriptionStatusLabels: Record<string, string> = {
+  TRIALING: 'Essai',
+  ACTIVE: 'Actif',
+  PAST_DUE: 'En retard',
+  CANCELLED: 'Annulé',
+  EXPIRED: 'Expiré',
+};
+
+export const subscriptionStatusBadge: Record<string, string> = {
+  TRIALING: 'bg-blue-50 text-blue-600',
+  ACTIVE: 'bg-emerald-50 text-emerald-600',
+  PAST_DUE: 'bg-amber-50 text-amber-600',
+  CANCELLED: 'bg-slate-100 text-slate-500',
+  EXPIRED: 'bg-red-50 text-red-600',
+};
+
+export const paymentStatusLabels: Record<string, string> = {
+  PENDING: 'En attente',
+  SUCCESS: 'Payé',
+  FAILED: 'Échoué',
+  REFUNDED: 'Remboursé',
+};
+
+export const paymentStatusBadge: Record<string, string> = {
+  PENDING: 'bg-amber-50 text-amber-600',
+  SUCCESS: 'bg-emerald-50 text-emerald-600',
+  FAILED: 'bg-red-50 text-red-600',
+  REFUNDED: 'bg-slate-100 text-slate-500',
+};

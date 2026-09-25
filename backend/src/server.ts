@@ -1,9 +1,16 @@
 import app from './app';
 import { env } from './config/env';
+import { ensureSuperAdmin } from './bootstrap/superadmin';
 
 const port = env.PORT;
 
-app.listen(port, () => {
-  console.log(`MadaStock API running on http://localhost:${port}`);
-  console.log(`Environment: ${env.NODE_ENV}`);
-});
+ensureSuperAdmin()
+  .catch((error) => {
+    console.error('[SUPERADMIN] Échec du bootstrap :', error);
+  })
+  .finally(() => {
+    app.listen(port, () => {
+      console.log(`MadaStock API running on http://localhost:${port}`);
+      console.log(`Environment: ${env.NODE_ENV}`);
+    });
+  });

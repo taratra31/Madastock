@@ -24,6 +24,8 @@ const envSchema = z.object({
   EMAIL_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().default('MadaStock <noreply@madastock.mg>'),
   VERIFY_CODE_TTL_MINUTES: z.string().default('15').transform(Number),
+  SUPERADMIN_EMAIL: z.string().email('Email superadmin invalide').optional(),
+  SUPERADMIN_PASSWORD: z.string().min(6).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

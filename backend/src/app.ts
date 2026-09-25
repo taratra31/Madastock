@@ -26,6 +26,7 @@ import invoiceRoutes from './routes/invoice.routes';
 import saleRoutes from './routes/sale.routes';
 import garageRoutes from './routes/garage.routes';
 import billingRoutes from './routes/billing.routes';
+import adminRoutes from './routes/admin.routes';
 import * as billingController from './controllers/billing.controller';
 
 const app = express();
@@ -77,6 +78,7 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/sales', saleRoutes);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/garage', garageRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Serve built frontend (production) — same origin, single port
 const distDir = path.join(__dirname, '../../frontend/dist');
