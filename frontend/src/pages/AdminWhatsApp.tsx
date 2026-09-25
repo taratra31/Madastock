@@ -21,21 +21,18 @@ const STEPS = [
 ];
 
 export default function AdminWhatsApp() {
+  const [qrPayload, setQrPayload] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [qrError, setQrError] = useState('');
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin', 'whatsapp'],
     queryFn: async () => {
       const res = await api.get('/admin/whatsapp');
       return res.data as WhatsappInfo;
     },
-    refetchInterval: (query) => {
-      const current = query.state.data as WhatsappInfo | undefined;
-      return current?.enabled && !current.paired ? 2000 : false;
-    },
+    refetchInterval: pending ? 5000 : false,
   });
-
-  const [qrPayload, setQrPayload] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [qrError, setQrError] = useState('');
 
   useEffect(() => {
     if (data?.qr && data.qr !== qrPayload) {
