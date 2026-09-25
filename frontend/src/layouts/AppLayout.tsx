@@ -25,6 +25,9 @@ import {
   CreditCard,
   ShoppingBag,
   AlertTriangle,
+  ShieldCheck,
+  Wallet,
+  MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
@@ -58,6 +61,18 @@ const SETTINGS_SECTION: NavSection = {
 };
 
 const VENTE_ITEM: NavItem = { label: 'Ventes (POS)', to: '/sales', icon: ShoppingBag };
+
+const ADMIN_SECTION: NavSection = {
+  title: 'SuperAdmin',
+  items: [
+    { label: 'Back-office', to: '/admin', icon: ShieldCheck },
+    { label: 'Boutiques', to: '/admin/stores', icon: Building2 },
+    { label: 'Utilisateurs', to: '/admin/users', icon: Users },
+    { label: 'Abonnements', to: '/admin/subscriptions', icon: CreditCard },
+    { label: 'Paiements', to: '/admin/payments', icon: Wallet },
+    { label: 'WhatsApp', to: '/admin/whatsapp', icon: MessageCircle },
+  ],
+};
 
 function navForSector(sector?: string): NavSection[] {
   if (sector === 'GARAGE') {
@@ -171,8 +186,7 @@ export default function AppLayout() {
   const canManage = currentRole === 'OWNER' || currentRole === 'ADMIN' || currentMembership?.canManageAll === true;
 
   const navSections = useMemo(() => {
-    const sections = navForSector(currentStore?.sector);
-    return sections
+    const sections = navForSector(currentStore?.sector)
       .map((section) => ({
         ...section,
         items: section.items.filter(
@@ -180,13 +194,18 @@ export default function AppLayout() {
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [currentStore?.sector, canManage]);
+    return user?.isSuperAdmin ? [...sections, ADMIN_SECTION] : sections;
+  }, [currentStore?.sector, canManage, user?.isSuperAdmin]);
 
   useEffect(() => setUserMenuOpen(false), [location.pathname]);
 
   const currentLabel = useMemo(() => {
-    const all = navSections.flatMap((s) => s.items);
-    return all.find((i) => location.pathname.startsWith(i.to))?.label ?? '';
+    const all = navSections
+      .flatMap((s) => s.items)
+      .sort((a, b) => b.to.length - a.to.length);
+    return (
+      all.find((i) => location.pathname === i.to || location.pathname.startsWith(`${i.to}/`))?.label ?? ''
+    );
   }, [location.pathname, navSections]);
 
   if (isLoading) {

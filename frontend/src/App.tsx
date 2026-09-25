@@ -31,6 +31,7 @@ import AdminStores from './pages/AdminStores';
 import AdminUsers from './pages/AdminUsers';
 import AdminSubscriptions from './pages/AdminSubscriptions';
 import AdminPayments from './pages/AdminPayments';
+import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminRoute from './components/AdminRoute';
 import AppLayout from './layouts/AppLayout';
 
@@ -71,6 +72,7 @@ function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="subscriptions" element={<AdminSubscriptions />} />
             <Route path="payments" element={<AdminPayments />} />
+            <Route path="whatsapp" element={<AdminWhatsApp />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
