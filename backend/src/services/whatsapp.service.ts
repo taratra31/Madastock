@@ -254,8 +254,14 @@ async function resolveVersion(): Promise<WaVersion> {
 function scheduleReconnect(): void {
   if (!isEnabled() || reconnectTimer) return;
   reconnectAttempts += 1;
-  if (reconnectAttempts > 10) return;
-  const delay = Math.min(30_000, 2_000 * reconnectAttempts);
+  // Tant que la session a déjà été appairée, on réessaie SANS CESSER.
+  // C'est ce qui permet au numéro de revenir tout seul après une longue
+  // inactivité (Render endort le service après ~15 min, ou le redémarre).
+  if (!wasPaired && reconnectAttempts > 10) return;
+  const delay =
+    wasPaired && reconnectAttempts > 10
+      ? 5 * 60_000
+      : Math.min(30_000, 2_000 * reconnectAttempts);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     void connectOnce();
@@ -346,7 +352,7 @@ async function connectOnce(): Promise<WASocket | null> {
         if (code === DisconnectReason.loggedOut) {
           lastError = 'Session expirée (401) — rescannez le QR';
         } else if (code === DisconnectReason.restartRequired) {
-          lastError = 'WhatsApp exige une mise à jour de Baileys (515)';
+          lastError = 'WhatsApp demande une version plus récente (515) — nouvelle tentative en cours';
         } else if (code === DisconnectReason.multideviceMismatch) {
           lastError = 'Session déjà appairée ailleurs (411) — rescannez le QR';
         } else {
@@ -358,9 +364,18 @@ async function connectOnce(): Promise<WASocket | null> {
         );
         socket = null;
         void sock.ev.removeAllListeners('connection.update');
+        if (code === DisconnectReason.restartRequired) {
+          // 515 = problème de VERSION, pas de session : on garde l'appairage
+          // et on relit une version WhatsApp plus récente avant de retenter.
+          cachedVersion = null;
+          reconnectAttempts = 0;
+          scheduleReconnect();
+          return;
+        }
+        // 401 / 411 / 403 : WhatsApp a réellement invalidated la session,
+        // seul un nouveau QR peut la débloquer.
         const fatal = [
           DisconnectReason.loggedOut,
-          DisconnectReason.restartRequired,
           DisconnectReason.multideviceMismatch,
           DisconnectReason.forbidden,
         ].includes(code as DisconnectReason);
@@ -377,6 +392,8 @@ async function connectOnce(): Promise<WASocket | null> {
     return sock;
   } catch (error) {
     lastError = error instanceof Error ? error.message : String(error);
+    // Ne pas rester muet : on retente (la base ou le réseau peuvent revenir).
+    scheduleReconnect();
     return null;
   } finally {
     connecting = false;
@@ -485,13 +502,21 @@ export async function sendOtpWhatsApp(
 /** Petit hook appelé au boot : tente la reconnexion si session persistée. */
 export async function initWhatsAppSocket(): Promise<void> {
   if (!isEnabled()) return;
-  try {
-    await ensureKvTable();
-    const hasCreds = await kvGet('creds.json');
-    if (hasCreds) {
-      void connectOnce();
+  // Au démarrage, la base peut encore être en train de monter : on réessaie
+  // quelques fois, sinon la session resterait morte jusqu'au prochain deploy.
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      await ensureKvTable();
+      const hasCreds = await kvGet('creds.json');
+      if (hasCreds) {
+        void connectOnce();
+      }
+      return;
+    } catch {
+      if (attempt === 5) {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 5_000));
     }
-  } catch {
-    /* jamais bloquant */
   }
 }
