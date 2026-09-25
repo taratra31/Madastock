@@ -19,6 +19,10 @@ import {
   FileText,
   RotateCw,
   Sparkles,
+  Building2,
+  Store,
+  Plus,
+  AlertCircle,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -159,7 +163,7 @@ function SectionTitle({
 
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const { currentStore } = useStores();
+  const { memberships, currentStore, setCurrentStore } = useStores();
   const navigate = useNavigate();
 
   const { data: stats, isFetching, refetch } = useQuery({
@@ -172,14 +176,73 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated && !currentStore) {
-      navigate('/stores', { replace: true });
+    if (!isLoading && isAuthenticated && !currentStore && memberships.length > 0) {
+      setCurrentStore(memberships[0].store.id);
     }
-  }, [isLoading, isAuthenticated, currentStore, navigate]);
+  }, [isLoading, isAuthenticated, currentStore, memberships, setCurrentStore]);
+
+  const greeting = new Date().toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const greetingLabel = greeting.charAt(0).toUpperCase() + greeting.slice(1);
 
   if (isLoading) return <Loading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!currentStore) return null;
+
+  // Aucun commerce = on ne redirige pas vers une page vide : on accueille
+  // l'utilisateur et on lui propose de créer sa boutique.
+  if (!currentStore) {
+    return (
+      <div className="space-y-6">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 shadow-xl shadow-emerald-500/10">
+          <div className="absolute -top-16 -right-10 w-64 h-64 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative px-6 sm:px-8 py-8">
+            <p className="flex items-center gap-1.5 text-emerald-100 text-[13px] font-medium">
+              <Sparkles className="w-3.5 h-3.5" />
+              {greetingLabel}
+            </p>
+            <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold text-white">
+              Bonjour, {user?.fullName ?? 'et bienvenue sur MadaStock'}
+            </h1>
+            <p className="mt-2 text-emerald-50/90 text-sm max-w-xl">
+              Vous n'avez pas encore de boutique. Créez la vôtre en 1 minute : stock, ventes,
+              factures et clients seront à votre portée.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                onClick={() => navigate('/stores?create=1')}
+                className="inline-flex items-center gap-2 bg-white text-emerald-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md transition-all hover:bg-emerald-50"
+              >
+                <Plus className="w-4 h-4" />
+                Créer ma boutique
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { icon: Store, title: 'Créez votre boutique', text: 'Un nom suffit pour démarrer.' },
+            { icon: PackagePlus, title: 'Ajoutez vos produits', text: 'Stock, prix et fournisseur.' },
+            { icon: Wallet, title: 'Encaissez vos ventes', text: 'Reçu, facture et rapport.' },
+          ].map((c) => (
+            <div key={c.title} className="bg-white rounded-2xl border border-slate-200 p-4 flex gap-3">
+              <span className="w-10 h-10 shrink-0 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <c.icon className="w-5 h-5 text-emerald-600" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-dark-900">{c.title}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{c.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const todayRevenue = stats?.sales.today.revenueAr ?? 0;
   const yesterdayRevenue = stats?.sales.yesterday.revenueAr ?? 0;
@@ -190,13 +253,6 @@ export default function Dashboard() {
         ? '100'
         : '0';
 
-  const greeting = new Date().toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-
   const quickActions = [
     { icon: ShoppingCart, label: 'Vente POS', to: '/sales', grad: 'from-emerald-500 to-teal-500' },
     { icon: PackagePlus, label: 'Ajouter un produit', to: '/products', grad: 'from-indigo-500 to-violet-500' },
@@ -206,6 +262,24 @@ export default function Dashboard() {
   ];
 
   const totalPie = pieValue(stats?.salesByPaymentMethod);
+
+  // Phrase d'accueil : dépend de l'état réel de la boutique.
+  const todaySales = stats?.sales.today.count ?? 0;
+  const monthSales = stats?.sales.month.count ?? 0;
+  const productCount = stats?.counts.products ?? 0;
+  const activityLine = !stats
+    ? 'Chargement de votre activité...'
+    : todaySales > 0
+      ? `${todaySales} vente${todaySales > 1 ? 's' : ''} aujourd'hui · ${formatAr(todayRevenue)} encaissés`
+      : monthSales > 0
+        ? `Pas de vente aujourd'hui · ${monthSales} vente${monthSales > 1 ? 's' : ''} ce mois-ci`
+        : productCount > 0
+          ? `${formatNumber(productCount)} produit${productCount > 1 ? 's' : ''} en stock · à vous la première vente`
+          : 'Boutique créée · ajoutez votre premier produit pour commencer';
+
+  const subscription = currentStore.subscription;
+  const subscriptionExpired =
+    !!subscription && !['ACTIVE', 'TRIALING'].includes(subscription.status);
 
   const weekData = stats?.weeklySalesByDay ?? [];
   const weekTotal = weekData.reduce((s, d) => s + d.revenue, 0);
@@ -223,27 +297,115 @@ export default function Dashboard() {
         <div className="absolute -bottom-20 right-40 w-40 h-40 rounded-full bg-teal-300/20 blur-2xl" />
         <div className="absolute top-8 left-1/3 w-24 h-24 rounded-full bg-white/5 blur-xl" />
         <div className="relative px-6 sm:px-8 py-7 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-          <div>
+          <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-emerald-100 text-[13px] font-medium">
               <Sparkles className="w-3.5 h-3.5" />
-              {greeting.charAt(0).toUpperCase() + greeting.slice(1)}
+              {greetingLabel}
             </p>
-            <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold text-white">
+            <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold text-white truncate">
               Bonjour, {user?.fullName ?? 'cher commerçant'}
             </h1>
-            <p className="mt-1.5 text-emerald-50/90 text-sm">
-              Voici l'activité de <span className="font-semibold text-white">{currentStore?.name}</span>
-            </p>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {memberships.length > 1 ? (
+                <span className="relative inline-flex items-center">
+                  <Building2 className="w-4 h-4 text-emerald-100 absolute left-2.5 pointer-events-none" />
+                  <select
+                    value={currentStore.id}
+                    onChange={(e) => setCurrentStore(e.target.value)}
+                    className="bg-white/95 text-emerald-800 text-sm font-semibold pl-8 pr-8 py-1.5 rounded-xl border-0 focus:outline-none focus:ring-2 focus:ring-white/70 max-w-[260px]"
+                    aria-label="Changer de boutique"
+                  >
+                    {memberships.map((m) => (
+                      <option key={m.store.id} value={m.store.id}>
+                        {m.store.name}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 bg-white/15 text-white text-sm font-semibold px-2.5 py-1.5 rounded-xl">
+                  <Building2 className="w-4 h-4" />
+                  {currentStore.name}
+                </span>
+              )}
+
+              {currentStore.city && (
+                <span className="text-emerald-50/80 text-xs">{currentStore.city}</span>
+              )}
+
+              {subscription && (
+                <span
+                  className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${
+                    subscriptionExpired
+                      ? 'bg-red-500 text-white'
+                      : 'bg-white/20 text-white'
+                  }`}
+                >
+                  {subscription.plan.name}
+                  {subscriptionExpired ? ' · à renouveler' : ''}
+                </span>
+              )}
+
+              {!currentStore.active && (
+                <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-500 text-white">
+                  Boutique inactive
+                </span>
+              )}
+            </div>
+
+            <p className="mt-2 text-emerald-50/90 text-sm">{activityLine}</p>
           </div>
-          <button
-            onClick={() => refetch()}
-            className="inline-flex items-center gap-2 bg-white/95 hover:bg-white text-emerald-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-emerald-900/10 transition-all"
-          >
-            <RotateCw className="w-4 h-4" />
-            Actualiser
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => navigate('/products')}
+              className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all"
+            >
+              <PackagePlus className="w-4 h-4" />
+              Produit
+            </button>
+            <button
+              onClick={() => navigate('/sales')}
+              className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Vendre
+            </button>
+            <button
+              onClick={() => refetch()}
+              className="inline-flex items-center gap-2 bg-white/95 hover:bg-white text-emerald-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-emerald-900/10 transition-all"
+            >
+              <RotateCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+              Actualiser
+            </button>
+          </div>
         </div>
       </div>
+
+      {subscriptionExpired && (
+        <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="min-w-0">
+            Votre abonnement <strong>{subscription?.plan.name}</strong> n'est plus actif.{' '}
+            <button onClick={() => navigate('/billing')} className="underline font-semibold">
+              Renouveler maintenant
+            </button>
+          </span>
+        </div>
+      )}
+
+      {stats?.counts.lowStock ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 text-amber-800 text-sm px-4 py-3">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            <strong>{stats.counts.lowStock}</strong> produit{stats.counts.lowStock > 1 ? 's' : ''} sous le
+            seuil d'alerte.{' '}
+            <button onClick={() => navigate('/stock')} className="underline font-semibold">
+              Voir le stock
+            </button>
+          </span>
+        </div>
+      ) : null}
 
       {!stats && isFetching ? (
         <Loading />

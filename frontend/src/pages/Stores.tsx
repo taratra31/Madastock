@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
 import { Store, Plus, ChevronRight, CheckCircle2, Building2, MapPin } from 'lucide-react';
@@ -29,6 +29,7 @@ export default function Stores() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const { currentStore, setCurrentStore, selectFirstStore } = useStores();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -36,6 +37,15 @@ export default function Stores() {
   const [newCity, setNewCity] = useState('');
   const [newCountry, setNewCountry] = useState('MG');
   const [newCurrency, setNewCurrency] = useState('MGA');
+
+  // Arrive depuis le tableau de bord sans boutique : on ouvre le formulaire.
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setCreateOpen(true);
+      searchParams.delete('create');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: memberships, isLoading: loadingMemberships } = useQuery({
     queryKey: ['stores'],
