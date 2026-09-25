@@ -46,6 +46,33 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const authLimiter = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.AUTH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+});
+
+const adminLimiter = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.ADMIN_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes. Patientez quelques minutes.' },
+});
+
+app.get('/api/v1/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Auth (login, OTP) : plafond serré pour contrer le brute-force.
+app.use('/api/v1/auth', authLimiter, authRoutes);
+
+// Back-office : déjà protégé par JWT + superadmin, plafond propre et large
+// pour ne jamais bloquer le polling de l'appairage WhatsApp.
+app.use('/api/v1/admin', adminLimiter, adminRoutes);
+
 app.use(
   rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -55,19 +82,6 @@ app.use(
   })
 );
 
-const authLimiter = rateLimit({
-  windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: env.AUTH_RATE_LIMIT_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de tentatives. Réessayez dans quelques minutes.' },
-});
-
-app.get('/api/v1/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/stores', storeRoutes);
 app.use('/api/v1/public', publicRoutes);
 app.use('/api/v1/products', productRoutes);
@@ -86,7 +100,6 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/sales', saleRoutes);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/garage', garageRoutes);
-app.use('/api/v1/admin', adminRoutes);
 
 // Serve built frontend (production) — same origin, single port
 const distDir = path.join(__dirname, '../../frontend/dist');

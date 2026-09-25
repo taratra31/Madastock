@@ -17,6 +17,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().default('900000').transform(Number),
   RATE_LIMIT_MAX: z.string().default('600').transform(Number),
   AUTH_RATE_LIMIT_MAX: z.string().default('20').transform(Number),
+  ADMIN_RATE_LIMIT_MAX: z.string().default('2000').transform(Number),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.string().default('587').transform(Number),
   SMTP_USER: z.string().default(''),
