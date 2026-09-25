@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { MessageCircle, RefreshCw, QrCode, ShieldCheck, Smartphone } from 'lucide-react';
@@ -6,7 +6,7 @@ import api from '../lib/api';
 import { apiError } from '../lib/admin';
 import { Badge, Button, Card, ErrorMessage, Loading, PageHeader } from '../components/ui';
 
-interface WhatsappStatus {
+interface WhatsappInfo {
   enabled: boolean;
   paired: boolean;
   qr: string | null;
@@ -25,30 +25,53 @@ export default function AdminWhatsApp() {
     queryKey: ['admin', 'whatsapp'],
     queryFn: async () => {
       const res = await api.get('/admin/whatsapp');
-      return res.data as WhatsappStatus;
+      return res.data as WhatsappInfo;
+    },
+    refetchInterval: (query) => {
+      const current = query.state.data as WhatsappInfo | undefined;
+      return current?.enabled && !current.paired ? 3000 : false;
     },
   });
 
-  const [qr, setQr] = useState<string | null>(null);
+  const [qrPayload, setQrPayload] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState('');
-  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (data?.qr && data.qr !== qrPayload) setQrPayload(data.qr);
+  }, [data?.qr]);
+
+  const { data: qrImage } = useQuery({
+    queryKey: ['admin', 'whatsapp-qr', qrPayload],
+    queryFn: async () => (qrPayload ? QRCode.toDataURL(qrPayload, { width: 260, margin: 2 }) : null),
+    enabled: !!qrPayload,
+  });
 
   const loadQr = async () => {
     setQrLoading(true);
     setQrError('');
-    setNotice('');
     try {
       const res = await api.get('/admin/whatsapp/qr');
-      const payload = res.data as string | null;
-      if (!payload) {
-        setQr(null);
-        setQrError('Aucun QR pour le moment. Vérifiez que WHATSAPP_OTP_ENABLED=1 sur Render, puis réessayez.');
+      const info = res.data as WhatsappInfo;
+      if (!info.enabled) {
+        setQrError('WhatsApp est désactivé : WHATSAPP_OTP_ENABLED=1 est requis sur Render.');
         return;
       }
-      setQr(await QRCode.toDataURL(payload, { width: 260, margin: 2 }));
+      if (info.paired) {
+        setQrError('Ce numéro est déjà appairé : aucun nouveau scan nécessaire.');
+        refetch();
+        return;
+      }
+      if (info.error) {
+        setQrError(`Connexion WhatsApp impossible : ${info.error}`);
+        return;
+      }
+      if (info.qr) {
+        setQrPayload(info.qr);
+        return;
+      }
+      setQrError('Le QR arrive dans quelques secondes : la page se met à jour automatiquement.');
     } catch (err) {
-      setQr(null);
       setQrError(apiError(err, 'Impossible de générer le QR.'));
     } finally {
       setQrLoading(false);
@@ -132,9 +155,13 @@ export default function AdminWhatsApp() {
             <h2 className="text-sm font-semibold text-slate-800">Appairage du numéro</h2>
           </div>
 
-          {qr ? (
+          {qrImage ? (
             <div className="flex flex-col items-center gap-3">
-              <img src={qr} alt="QR d'appairage WhatsApp" className="w-[260px] h-[260px] border border-slate-200 rounded-xl" />
+              <img
+                src={qrImage}
+                alt="QR d'appairage WhatsApp"
+                className="w-[260px] h-[260px] border border-slate-200 rounded-xl"
+              />
               <p className="text-xs text-center text-slate-500">
                 Ce QR expire rapidement. S&apos;il n&apos;est plus valide, cliquez sur « Nouveau QR ».
               </p>
@@ -147,11 +174,10 @@ export default function AdminWhatsApp() {
 
           <Button className="w-full" onClick={loadQr} disabled={qrLoading || !data.enabled}>
             <Smartphone className="w-4 h-4" />
-            {qrLoading ? 'Génération...' : qr ? 'Nouveau QR' : "Obtenir le QR d'appairage"}
+            {qrLoading ? 'Génération...' : qrImage ? 'Nouveau QR' : "Obtenir le QR d'appairage"}
           </Button>
 
-          {qrError && <p className="mt-3 text-xs text-red-600">{qrError}</p>}
-          {notice && <p className="mt-3 text-xs text-emerald-700">{notice}</p>}
+          {qrError && <p className="mt-3 text-xs text-amber-700">{qrError}</p>}
 
           <div className="mt-5 pt-4 border-t border-slate-100">
             <p className="flex items-center gap-1.5 text-xs font-medium text-slate-700 mb-2">

@@ -185,7 +185,6 @@ async function connectOnce(): Promise<WASocket | null> {
           level: 'silent',
         } as never),
       },
-      version: [2, 3000, 1018531300],
       browser: ['MadaStock', 'Chrome', '1.0'],
       printQRInTerminal: false,
       syncFullHistory: false,
@@ -260,17 +259,26 @@ export function whatsappStatus(): {
   };
 }
 
-/** QR d'appairage (un seul scan — WhatsApp → Appareils liés). */
-export async function getWhatsappQr(): Promise<string | null> {
-  if (!isEnabled()) return null;
+export interface WhatsappInfo {
+  enabled: boolean;
+  paired: boolean;
+  qr: string | null;
+  error: string | null;
+  sender: string;
+}
+
+/** Démarre la session si besoin et attend le QR (jusqu'à ~45 s). */
+export async function getWhatsappQrInfo(): Promise<WhatsappInfo> {
+  if (!isEnabled()) {
+    return { enabled: false, paired: false, qr: null, error: null, sender: senderNumber() };
+  }
   if (!socket) {
     await connectOnce();
-    // attendre un cycle QR possible
-    for (let i = 0; i < 12 && !lastQr; i++) {
-      await new Promise((r) => setTimeout(r, 500));
-    }
   }
-  return lastQr;
+  for (let i = 0; i < 45 && !lastQr && !isPaired && !lastError; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return { enabled: true, paired: isPaired, qr: lastQr, error: lastError, sender: senderNumber() };
 }
 
 /**
