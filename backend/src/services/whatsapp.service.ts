@@ -1,5 +1,6 @@
 import makeWASocket, {
   DisconnectReason,
+  fetchLatestWaWebVersion,
   initAuthCreds,
   makeCacheableSignalKeyStore,
   type WASocket,
@@ -179,6 +180,77 @@ let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let wasPaired = false;
 
+type WaVersion = [number, number, number];
+
+let cachedVersion: WaVersion | null = null;
+
+const FALLBACK_VERSION: WaVersion = [2, 3000, 1048298845];
+
+function toVersion(revision: string): WaVersion {
+  const parts = revision.split('.').map(Number);
+  if (parts.length !== 3 || !parts.every((n) => Number.isFinite(n))) {
+    return FALLBACK_VERSION;
+  }
+  return parts as WaVersion;
+}
+
+async function fetchVersionFromSwJs(): Promise<WaVersion | null> {
+  try {
+    const res = await fetch('https://web.whatsapp.com/sw.js', {
+      headers: { 'user-agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    const match = text.match(/"client_revision":\s*(\d+(?:\.\d+)*)/) ?? text.match(/client_revision\D{0,10}(\d+(?:\.\d+)*)/);
+    return match ? toVersion(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * WhatsApp Web rejette les versions périmées (405/515) : celle codée dans
+ * Baileys est souvent en retard. Source de vérité = web.whatsapp.com.
+ * Override possible via WHATSAPP_WA_VERSION="2.3000.1048298845".
+ */
+async function resolveVersion(): Promise<WaVersion> {
+  const override = env.WHATSAPP_WA_VERSION?.trim();
+  if (override) {
+    const parts = override.split(/[.,\s]+/).filter(Boolean).map(Number);
+    if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+      return parts as WaVersion;
+    }
+  }
+  if (cachedVersion) {
+    return cachedVersion;
+  }
+
+  let resolved: WaVersion | null = null;
+  try {
+    const result = (await Promise.race([
+      fetchLatestWaWebVersion(),
+      new Promise<null>((r) => setTimeout(() => r(null), 10_000)),
+    ])) as { version?: WaVersion; isLatest?: boolean } | null;
+    if (result?.version && result.isLatest !== false) {
+      resolved = result.version;
+    }
+  } catch {
+    resolved = null;
+  }
+
+  if (!resolved) {
+    resolved = await fetchVersionFromSwJs();
+  }
+
+  cachedVersion = resolved ?? FALLBACK_VERSION;
+  logger.info(
+    { version: cachedVersion, source: resolved ? 'whatsapp' : 'fallback' },
+    '[whatsapp] version WhatsApp Web utilisee',
+  );
+  return cachedVersion;
+}
+
 function scheduleReconnect(): void {
   if (!isEnabled() || reconnectTimer) return;
   reconnectAttempts += 1;
@@ -230,7 +302,10 @@ async function connectOnce(): Promise<WASocket | null> {
       creds = initAuthCreds();
     }
 
+    const version = await resolveVersion();
+
     const sock = makeWASocket({
+      version,
       auth: {
         creds,
         keys: makeCacheableSignalKeyStore(signalKeys(), logger),
@@ -278,7 +353,7 @@ async function connectOnce(): Promise<WASocket | null> {
           lastError = `Connexion fermée (code ${code ?? 'inconnu'}) : ${error?.message ?? 'erreur réseau'}`;
         }
         logger.warn(
-          { code, message: error?.message, wasPaired },
+          { code, version: cachedVersion?.join('.'), message: error?.message, wasPaired },
           '[whatsapp] deconnexion',
         );
         socket = null;
@@ -321,6 +396,7 @@ export function whatsappStatus(): {
   qr: string | null;
   error: string | null;
   sender: string;
+  version: string | null;
 } {
   return {
     enabled: isEnabled(),
@@ -328,6 +404,7 @@ export function whatsappStatus(): {
     qr: lastQr,
     error: lastError,
     sender: senderNumber(),
+    version: cachedVersion ? cachedVersion.join('.') : null,
   };
 }
 
@@ -337,6 +414,7 @@ export interface WhatsappInfo {
   qr: string | null;
   error: string | null;
   sender: string;
+  version: string | null;
 }
 
 /**

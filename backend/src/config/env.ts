@@ -35,6 +35,9 @@ const envSchema = z.object({
   // n'a pas de téléphone, si la session n'est pas pairée ou si l'envoi échoue.
   WHATSAPP_OTP_ENABLED: z.string().default('0'),
   WHATSAPP_SENDER_NUMBER: z.string().default('+261326321784'),
+  // Force une version WhatsApp Web précise, ex. "2.3000.1048298845".
+  // Vide = vaChercher la version en cours directement chez WhatsApp.
+  WHATSAPP_WA_VERSION: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
