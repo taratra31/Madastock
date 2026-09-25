@@ -26,6 +26,13 @@ const envSchema = z.object({
   VERIFY_CODE_TTL_MINUTES: z.string().default('15').transform(Number),
   SUPERADMIN_EMAIL: z.string().email('Email superadmin invalide').optional(),
   SUPERADMIN_PASSWORD: z.string().min(6).optional(),
+  // --- Canal WhatsApp OTP (OPTIONNEL, neutre par défaut) ---
+  // Ce canal est INACTIF tant que WHATSAPP_OTP_ENABLED != '1'. Quand il est
+  // actif, le code 6 chiffres part en WhatsApp (expéditeur = notre numéro pairé
+  // WHATSAPP_SENDER_NUMBER) avec repli automatique sur l'e-mail si le client
+  // n'a pas de téléphone, si la session n'est pas pairée ou si l'envoi échoue.
+  WHATSAPP_OTP_ENABLED: z.string().default('0'),
+  WHATSAPP_SENDER_NUMBER: z.string().default('+261326321784'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -6,6 +6,7 @@ import prisma from '../lib/prisma';
 import type { JwtPayload } from '../types/express';
 import { badRequest, conflict, tooManyRequests, unauthorized } from '../utils/httpError';
 import { sendPasswordResetEmail, sendVerifyCodeEmail } from './mailer.service';
+import { sendOtpWhatsApp, whatsappOtpEnabled } from './whatsapp.service';
 import type {
   ForgotPasswordInput,
   LoginInput,
@@ -119,6 +120,24 @@ function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+// Envoi d'un code OTP : WhatsApp en prioritaire (si activé + numéro connu),
+// sinon repli automatique sur l'e-mail. Ne lève que si AUCUN canal n'a marché.
+async function dispatchOtp(
+  opts: { phone?: string | null; email: string; code: string; kind: 'verify' | 'reset' },
+): Promise<'whatsapp' | 'email'> {
+  const { phone, email, code, kind } = opts;
+  if (phone && whatsappOtpEnabled()) {
+    const sent = await sendOtpWhatsApp(phone, code);
+    if (sent) return 'whatsapp';
+  }
+  if (kind === 'verify') {
+    await sendVerifyCodeEmail(email, code);
+  } else {
+    await sendPasswordResetEmail(email, code);
+  }
+  return 'email';
+}
+
 export async function register(input: RegisterInput) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
@@ -142,10 +161,10 @@ export async function register(input: RegisterInput) {
   });
 
   try {
-    await sendVerifyCodeEmail(input.email, code);
+    await dispatchOtp({ phone: input.phone, email: input.email, code, kind: 'verify' });
   } catch {
     await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
-    throw badRequest("Impossible d'envoyer le code de vérification par e-mail");
+    throw badRequest("Impossible d'envoyer le code de vérification");
   }
 
   return {
@@ -278,9 +297,9 @@ export async function requestPasswordReset(input: ForgotPasswordInput) {
   });
 
   try {
-    await sendPasswordResetEmail(user.email, code);
+    await dispatchOtp({ phone: user.phone, email: user.email, code, kind: 'reset' });
   } catch {
-    throw badRequest("Impossible d'envoyer le code de réinitialisation par e-mail");
+    throw badRequest("Impossible d'envoyer le code de réinitialisation");
   }
 
   return { message: 'Un code de réinitialisation a été envoyé.' };
@@ -345,9 +364,9 @@ export async function resendCode(email: string) {
   });
 
   try {
-    await sendVerifyCodeEmail(email, code);
+    await dispatchOtp({ phone: user.phone, email, code, kind: 'verify' });
   } catch {
-    throw badRequest("Impossible d'envoyer le code de vérification par e-mail");
+    throw badRequest("Impossible d'envoyer le code de vérification");
   }
 
   return { message: 'Un nouveau code a été envoyé.' };
