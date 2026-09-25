@@ -291,7 +291,7 @@ export async function sendOtpWhatsApp(
       `🔐 MadaStock — Code de connexion\n\n` +
       `Votre code de vérification est : *${code}*\n` +
       `Il expire dans quelques minutes. Ne le partagez avec personne.\n\n` +
-      `Expédié par MadaStock (+261326321784)`;
+      `Envoyé par MadaStock (${senderNumber()})`;
     await sock.sendMessage(jid, { text });
     return true;
   } catch {
