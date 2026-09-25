@@ -29,6 +29,7 @@ import Purchases from './pages/Purchases';
 import Expenses from './pages/Expenses';
 import Brands from './pages/Brands';
 import CashRegister from './pages/CashRegister';
+import Notifications from './pages/Notifications';
 import Faq from './pages/Faq';
 import Pricing from './pages/Pricing';
 import AdminOverview from './pages/AdminOverview';
@@ -76,6 +77,7 @@ function App() {
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/brands" element={<Brands />} />
           <Route path="/cash" element={<CashRegister />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/admin" element={<AdminRoute />}>
             <Route index element={<AdminOverview />} />
             <Route path="stores" element={<AdminStores />} />

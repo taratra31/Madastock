@@ -11,6 +11,7 @@ async function main() {
       description: 'Pour découvrir MadaStock : 1 utilisateur, 50 produits, 1 entrepôt.',
       priceAr: 0,
       billingCycle: 'MONTHLY',
+      durationDays: 30,
       maxUsers: 1,
       maxProducts: 50,
       maxWarehouses: 1,
@@ -22,6 +23,7 @@ async function main() {
       description: 'Pour les petites boutiques en croissance.',
       priceAr: 25000,
       billingCycle: 'MONTHLY',
+      durationDays: 30,
       maxUsers: 3,
       maxProducts: 500,
       maxWarehouses: 1,
@@ -33,6 +35,7 @@ async function main() {
       description: 'Pour les boutiques établies avec plusieurs vendeurs.',
       priceAr: 50000,
       billingCycle: 'MONTHLY',
+      durationDays: 30,
       maxUsers: 10,
       maxProducts: 5000,
       maxWarehouses: 3,
@@ -44,6 +47,7 @@ async function main() {
       description: 'Pour les chaînes de boutiques et la comptabilité avancée.',
       priceAr: 120000,
       billingCycle: 'MONTHLY',
+      durationDays: 30,
       maxUsers: 50,
       maxProducts: 50000,
       maxWarehouses: 20,
@@ -55,7 +59,7 @@ async function main() {
   for (const plan of plansData) {
     await prisma.plan.upsert({
       where: { name: plan.name },
-      update: {},
+      update: { durationDays: plan.durationDays, priceAr: plan.priceAr, isActive: true },
       create: plan,
     });
   }

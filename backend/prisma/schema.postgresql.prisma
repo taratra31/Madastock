@@ -191,6 +191,8 @@ model Plan {
   priceAr          Decimal      
   billingCycle     String @default("MONTHLY")
   durationMonths   Int          @default(1)
+  /// Durée de l'offre en jours : c'est cette valeur qui fait le compte à rebours.
+  durationDays     Int          @default(30)
   maxUsers         Int          @default(1)
   maxProducts      Int          @default(50)
   maxWarehouses    Int          @default(1)

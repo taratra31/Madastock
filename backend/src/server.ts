@@ -2,6 +2,7 @@ import app from './app';
 import { env } from './config/env';
 import { ensureSuperAdmin } from './bootstrap/superadmin';
 import { initWhatsAppSocket } from './services/whatsapp.service';
+import { runDailyJobs, startScheduler } from './services/scheduler.service';
 
 const port = env.PORT;
 
@@ -17,4 +18,7 @@ ensureSuperAdmin()
     initWhatsAppSocket().catch((error) => {
       console.error('[WHATSAPP] Échec de l\'initialisation :', error);
     });
+    // Expiration des abonnements, alertes J-3 / J-1, stock bas, rappels du jour.
+    void runDailyJobs();
+    startScheduler();
   });

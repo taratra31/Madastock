@@ -1,6 +1,8 @@
 import prisma from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../utils/httpError';
 import type { AddMemberInput, CreateStoreInput, UpdateStoreInput, UpdateMemberInput } from '../validators/store.validator';
+import { notifyOwners } from './notification.service';
+import { TRIAL_DAYS, trialPeriod } from './subscription.service';
 
 export async function createStore(userId: string, input: CreateStoreInput) {
   const plan = await prisma.plan.findUnique({ where: { name: 'FREE' } });
@@ -9,8 +11,9 @@ export async function createStore(userId: string, input: CreateStoreInput) {
   }
 
   const now = new Date();
-  const periodEnd = new Date(now);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  // L'essai gratuit dure TRIAL_DAYS : currentPeriodEnd suit trialEndsAt pour que
+  // le compte à rebours affiché (J-13, J-12...) soit le seul vrai.
+  const trial = trialPeriod(now);
 
   const result = await prisma.$transaction(async (tx) => {
     const store = await tx.store.create({
@@ -42,9 +45,9 @@ export async function createStore(userId: string, input: CreateStoreInput) {
         storeId: store.id,
         planId: plan.id,
         status: 'TRIALING',
-        trialEndsAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
+        trialEndsAt: trial.end,
+        currentPeriodStart: trial.start,
+        currentPeriodEnd: trial.end,
         priceAr: plan.priceAr,
         billingCycle: plan.billingCycle,
       },
@@ -59,6 +62,15 @@ export async function createStore(userId: string, input: CreateStoreInput) {
     });
 
     return store;
+  });
+
+  // Bienvenue : lepropriétaire voit tout de suite son temps restant.
+  await notifyOwners({
+    storeId: result.id,
+    type: 'SUBSCRIPTION_ACTIVATED',
+    title: 'Essai gratuit de 14 jours',
+    message: `La boutique « ${result.name} » est prête. Votre essai se termine le ${trial.end.toLocaleDateString('fr-FR')} : pensez à choisir un abonnement avant.`,
+    data: { trialDays: TRIAL_DAYS, to: '/billing' },
   });
 
   return result;

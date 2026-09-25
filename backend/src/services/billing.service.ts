@@ -9,6 +9,8 @@ import {
   getPaymentStatus,
   type AriariPaymentData,
 } from './ariari.service';
+import { notifyOwners } from './notification.service';
+import { getSubscriptionState, nextPeriod, planDurationDays } from './subscription.service';
 
 type PaymentRecord = Awaited<ReturnType<typeof prisma.payment.findUnique>>;
 
@@ -31,7 +33,9 @@ export async function getOverview(storeId: string) {
     take: 10,
     include: { plan: true },
   });
-  return { subscription, plans, orders };
+  // Compte à rebours en jours : c'est ce que l'interface affiche (« J-12 »).
+  const state = await getSubscriptionState(storeId);
+  return { subscription, subscriptionState: state, plans, orders };
 }
 
 export async function createCheckout(storeId: string, userId: string, planId: string) {
@@ -171,13 +175,15 @@ export async function getPaymentStatusInfo(storeId: string, merchantReference: s
     where: { storeId },
     include: { plan: true },
   });
+  const state = await getSubscriptionState(storeId);
 
   return {
     paymentStatus: fresh?.status ?? payment.status,
     provider: fresh?.provider ?? null,
     planName: fresh?.plan.name ?? null,
-    subscriptionStatus: subscription?.status ?? null,
+    subscriptionStatus: state?.status ?? subscription?.status ?? null,
     expiresAt: subscription?.currentPeriodEnd ?? null,
+    daysRemaining: state?.daysRemaining ?? 0,
   };
 }
 
@@ -269,6 +275,13 @@ async function applyNotification(payment: NonNullable<PaymentRecord>, info: Aria
       },
     });
     log('ARIARI_PAYMENT_FAILED', ref);
+    await notifyOwners({
+      storeId: payment.storeId,
+      type: 'PAYMENT_FAILED',
+      title: 'Paiement non abouti',
+      message: `Le paiement de ${Number(payment.amountAr).toLocaleString('fr-FR')} Ar n'a pas abouti. L'abonnement n'a pas été prolongé : vous pouvez réessayer.`,
+      data: { reference: ref, to: '/billing' },
+    });
     return true;
   }
 
@@ -287,7 +300,8 @@ async function applyNotification(payment: NonNullable<PaymentRecord>, info: Aria
 
 /**
  * Active (ou prolonge) l'abonnement dans LA MÊME transaction que le paiement PAID.
- * La durée vient exclusivement du plan en base.
+ * La durée vient du plan, en JOURS. Si l'abonnement n'est pas encore terminé, la
+ * nouvelle période s'empile sur les jours restants : rien n'est perdu.
  */
 async function activateSubscription(tx: Prisma.TransactionClient, storeId: string, planId: string, amountAr: Prisma.Decimal | number) {
   const plan = await tx.plan.findUnique({ where: { id: planId } });
@@ -295,26 +309,14 @@ async function activateSubscription(tx: Prisma.TransactionClient, storeId: strin
 
   const now = new Date();
   const existing = await tx.subscription.findUnique({ where: { storeId } });
-
-  const durationMonths = plan.durationMonths > 0 ? plan.durationMonths : 1;
-  let start = now;
-  let renewed = false;
-
-  // Renouvellement : ne jamais faire perdre les jours restants.
-  if (existing && existing.status === 'ACTIVE' && existing.currentPeriodEnd > now) {
-    start = existing.currentPeriodEnd;
-    renewed = true;
-  }
-
-  const end = new Date(start);
-  end.setMonth(end.getMonth() + durationMonths);
+  const period = nextPeriod(plan, existing, now);
 
   const data = {
     planId,
     status: 'ACTIVE',
     trialEndsAt: null,
-    currentPeriodStart: start,
-    currentPeriodEnd: end,
+    currentPeriodStart: period.start,
+    currentPeriodEnd: period.end,
     priceAr: amountAr,
     billingCycle: plan.billingCycle,
     autoRenew: true,
@@ -327,6 +329,24 @@ async function activateSubscription(tx: Prisma.TransactionClient, storeId: strin
     create: { storeId, ...data },
   });
 
-  log(renewed ? 'SUBSCRIPTION_RENEWED' : 'SUBSCRIPTION_ACTIVATED', `store=${storeId} plan=${plan.name} fin=${end.toISOString()}`);
+  log(
+    period.renewed ? 'SUBSCRIPTION_RENEWED' : 'SUBSCRIPTION_ACTIVATED',
+    `store=${storeId} plan=${plan.name} ${planDurationDays(plan)}j` +
+      (period.renewed ? ` (+${period.remainingDays}j restants conservés)` : '') +
+      ` fin=${period.end.toISOString()}`,
+  );
+
+  // Notification hors transaction : ne doit jamais faire échouer le paiement.
+  const durationDays = planDurationDays(plan);
+  await notifyOwners({
+    storeId,
+    type: period.renewed ? 'SUBSCRIPTION_RENEWED' : 'SUBSCRIPTION_ACTIVATED',
+    title: period.renewed ? 'Abonnement renouvelé' : 'Abonnement activé',
+    message: period.renewed
+      ? `Abonnement ${plan.name} : ${durationDays} jours ajoutés. Nouveau départ le ${period.start.toLocaleDateString('fr-FR')}, fin le ${period.end.toLocaleDateString('fr-FR')}.`
+      : `Abonnement ${plan.name} activé pour ${durationDays} jours, jusqu'au ${period.end.toLocaleDateString('fr-FR')}.`,
+    data: { planId, planName: plan.name, durationDays, to: '/billing' },
+  });
+
   return subscription;
 }

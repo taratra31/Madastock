@@ -38,6 +38,7 @@ import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
 import api from '../lib/api';
 import { roleLabels, sectorLabels } from '../lib/labels';
+import NotificationBell from '../components/NotificationBell';
 
 interface NavItem {
   label: string;
@@ -72,7 +73,10 @@ const SUPPLY_SECTION: NavSection = {
 
 const SETTINGS_SECTION: NavSection = {
   title: 'Paramètres',
-  items: [{ label: 'Boutique', to: '/settings', icon: Settings }],
+  items: [
+    { label: 'Notifications', to: '/notifications', icon: Bell },
+    { label: 'Boutique', to: '/settings', icon: Settings },
+  ],
 };
 
 const VENTE_ITEM: NavItem = { label: 'Ventes (POS)', to: '/sales', icon: ShoppingBag };
@@ -385,6 +389,8 @@ export default function AppLayout() {
                   </Link>
                 </div>
               )}
+
+              <NotificationBell />
 
               <div className="relative">
                 <button

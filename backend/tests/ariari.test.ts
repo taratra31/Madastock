@@ -257,7 +257,7 @@ describe('Billing service - activation automatique (re-lecture API)', () => {
     expect(prismaMock.subscription.upsert).not.toHaveBeenCalled();
   });
 
-  it('renouvellement avant expiration : prolonge depuis currentPeriodEnd', async () => {
+  it('renouvellement avant expiration : prolonge de N jours depuis currentPeriodEnd', async () => {
     prismaMock.payment.findUnique
       .mockResolvedValueOnce(pendingPayment)
       .mockResolvedValueOnce(pendingPayment);
@@ -284,10 +284,41 @@ describe('Billing service - activation automatique (re-lecture API)', () => {
     await billingService.handleWebhook(Buffer.from(JSON.stringify({ _id: 'pay-ar-1', status: 'paid' })));
 
     const upsertCall = prismaMock.subscription.upsert.mock.calls[0][0];
+    // Jours restants conservés + durée du plan en JOURS (plus de « +1 mois »).
     expect(upsertCall.update.currentPeriodStart.toISOString()).toBe('2026-10-20T00:00:00.000Z');
-    const expectedEnd = new Date(existingEnd);
-    expectedEnd.setMonth(expectedEnd.getMonth() + 1);
+    const expectedEnd = new Date(existingEnd.getTime() + 30 * 24 * 60 * 60 * 1000);
     expect(upsertCall.update.currentPeriodEnd.toISOString()).toBe(expectedEnd.toISOString());
+    expect(upsertCall.update.status).toBe('ACTIVE');
+  });
+
+  it('paiement répété le même jour : chaque achat ajoute sa durée', async () => {
+    prismaMock.payment.findUnique
+      .mockResolvedValueOnce(pendingPayment)
+      .mockResolvedValueOnce(pendingPayment);
+    prismaMock.plan.findUnique.mockResolvedValue(activePlan);
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1' });
+    const existingEnd = new Date('2026-10-20T00:00:00.000Z');
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      id: 'sub-1',
+      status: 'ACTIVE',
+      currentPeriodStart: new Date('2026-09-20T00:00:00.000Z'),
+      currentPeriodEnd: existingEnd,
+      planId: 'plan-1',
+    });
+    prismaMock.subscription.upsert.mockResolvedValue({ id: 'sub-1' });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(ariariApiResponse(ariariPayment({ status: 'paid', rest: 0 }))),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await billingService.handleWebhook(Buffer.from(JSON.stringify({ _id: 'pay-ar-1', status: 'paid' })));
+
+    const end = prismaMock.subscription.upsert.mock.calls[0][0].update.currentPeriodEnd as Date;
+    const days = Math.round((end.getTime() - existingEnd.getTime()) / (24 * 60 * 60 * 1000));
+    expect(days).toBe(30);
   });
 });
 

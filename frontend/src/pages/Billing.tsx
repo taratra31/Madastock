@@ -49,6 +49,20 @@ interface Order {
   plan: Plan;
 }
 
+interface SubscriptionState {
+  planName: string;
+  status: string;
+  isLive: boolean;
+  isExpired: boolean;
+  isTrial: boolean;
+  currentPeriodEnd: string;
+  daysRemaining: number;
+  daysTotal: number;
+  remainingPercent: number;
+  durationDays: number;
+  trialDaysRemaining: number;
+}
+
 interface BillingData {
   subscription: {
     id: string;
@@ -59,6 +73,7 @@ interface BillingData {
     priceAr: string | number;
     plan: Plan;
   } | null;
+  subscriptionState: SubscriptionState | null;
   plans: Plan[];
   orders: Order[];
 }
@@ -211,13 +226,23 @@ export default function Billing() {
   const isMutating = checkoutMutation.isPending || refreshMutation.isPending;
 
   const sub = data?.subscription;
+  const state = data?.subscriptionState ?? null;
   const cycleStart = sub ? new Date(sub.currentPeriodStart).getTime() : 0;
   const cycleEnd = sub ? new Date(sub.currentPeriodEnd).getTime() : 0;
+  // Le décompte vient du serveur (une seule vérité) : « J-12 ».
+  const daysLeft = state?.daysRemaining ?? 0;
   const cyclePct =
-    sub && cycleStart < cycleEnd
-      ? Math.min(100, Math.max(0, ((Date.now() - cycleStart) / (cycleEnd - cycleStart)) * 100))
-      : 0;
-  const daysLeft = sub ? Math.max(0, Math.ceil((cycleEnd - Date.now()) / 86400000)) : 0;
+    state?.remainingPercent != null
+      ? 100 - state.remainingPercent
+      : sub && cycleStart < cycleEnd
+        ? Math.min(100, Math.max(0, ((Date.now() - cycleStart) / (cycleEnd - cycleStart)) * 100))
+        : 0;
+  const countdownTone =
+    daysLeft <= 1
+      ? 'bg-red-50 text-red-700 ring-red-200'
+      : daysLeft <= 3
+        ? 'bg-amber-50 text-amber-700 ring-amber-200'
+        : 'bg-emerald-50 text-emerald-700 ring-emerald-200';
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -289,7 +314,9 @@ export default function Billing() {
                         <CalendarDays className="w-3.5 h-3.5" />
                         Cycle : {formatDate(sub.currentPeriodStart)} → {formatDate(sub.currentPeriodEnd)}
                       </span>
-                      <span className="font-semibold text-slate-700">{daysLeft} j</span>
+                      <Badge className={cn('ring-1 font-semibold', countdownTone)}>
+                        {daysLeft > 0 ? `J-${daysLeft}` : 'Terminé'}
+                      </Badge>
                     </div>
                     <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                       <div
@@ -300,9 +327,11 @@ export default function Billing() {
                     <p className="text-xs text-slate-400 mt-1.5">
                       {sub.status === 'TRIALING'
                         ? sub.trialEndsAt
-                          ? `Fin de l'essai le ${formatDate(sub.trialEndsAt)}`
+                          ? `Essai gratuit : encore ${daysLeft} jour(s), fin le ${formatDate(sub.trialEndsAt)}`
                           : 'Période d\'essai en cours'
-                        : `Renouvellement prévu le ${formatDate(sub.currentPeriodEnd)}`}
+                        : state?.isExpired
+                          ? `Abonnement arrivé à terme le ${formatDate(sub.currentPeriodEnd)}. Vos données sont conservées.`
+                          : `${daysLeft} jour(s) restant(s)${state?.daysTotal ? ` sur ${state.daysTotal}` : ''} — chaque paiement ajoute sa durée`}
                     </p>
                   </div>
                 </div>
