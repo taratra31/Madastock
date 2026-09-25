@@ -151,16 +151,12 @@ export default function Register() {
               autoComplete="tel-national"
               maxLength={9}
               pattern="(32|33|34|35|37|38)[0-9]{7}"
-              aria-describedby="phone-help"
               value={phone}
               onChange={(e) => setPhone(normalizeNationalPhone(e.target.value))}
               className="min-w-0 flex-1 bg-white px-4 py-3 text-sm text-slate-800 outline-none placeholder-slate-400 focus:bg-white focus:ring-0"
               placeholder="34 00 000 00"
             />
           </div>
-          <p id="phone-help" className="mt-1.5 text-xs text-slate-500">
-            Préfixes acceptés : 32, 33, 34, 35, 37 ou 38.
-          </p>
         </div>
 
         <div>
