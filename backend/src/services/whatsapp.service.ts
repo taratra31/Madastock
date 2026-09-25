@@ -37,7 +37,7 @@ import prisma from '../lib/prisma';
 
 const KV_TABLE = 'whatsapp_kv';
 
-const logger = pino({ level: process.env.WHATSAPP_LOG_LEVEL || 'silent' });
+const logger = pino({ level: process.env.WHATSAPP_LOG_LEVEL || 'warn' });
 
 const isPostgres = (): boolean => env.DATABASE_URL.startsWith('postgres');
 
@@ -177,6 +177,7 @@ let isPaired = false;
 let lastError: string | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
+let wasPaired = false;
 
 function scheduleReconnect(): void {
   if (!isEnabled() || reconnectTimer) return;
@@ -259,6 +260,7 @@ async function connectOnce(): Promise<WASocket | null> {
       }
       if (u.connection === 'open') {
         isPaired = true;
+        wasPaired = true;
         lastQr = null;
         reconnectAttempts = 0;
       }
@@ -275,9 +277,22 @@ async function connectOnce(): Promise<WASocket | null> {
         } else {
           lastError = `Connexion fermée (code ${code ?? 'inconnu'}) : ${error?.message ?? 'erreur réseau'}`;
         }
+        logger.warn(
+          { code, message: error?.message, wasPaired },
+          '[whatsapp] deconnexion',
+        );
         socket = null;
         void sock.ev.removeAllListeners('connection.update');
-        if (code !== DisconnectReason.loggedOut) {
+        const fatal = [
+          DisconnectReason.loggedOut,
+          DisconnectReason.restartRequired,
+          DisconnectReason.multideviceMismatch,
+          DisconnectReason.forbidden,
+        ].includes(code as DisconnectReason);
+        if (fatal) {
+          void clearKv();
+          reconnectAttempts = 0;
+        } else {
           scheduleReconnect();
         }
       }
