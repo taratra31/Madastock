@@ -46,12 +46,28 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Anti-bruteforce : uniquement les endpoints qui manipulent un mot de passe ou
+// un code, et uniquement les ÉCHECS (`skipSuccessfulRequests`). Un utilisateur
+// légitime qui se connecte 30 fois ne sera donc jamais bloqué, tandis qu'une
+// attaque par force brute reste plafonnée.
 const authLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_MAX,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+});
+
+// /me et /refresh sont des appels normaux (chargement de page, retour sur
+// l'onglet, reconnexion). Leur plafond est large et distinct, sinon ils
+// consomment le compteur ci-dessus et bloquent l'utilisateur sans raison.
+const authSoftLimiter = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.AUTH_SOFT_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes. Patientez quelques secondes.' },
 });
 
 const adminLimiter = rateLimit({
@@ -66,8 +82,20 @@ app.get('/api/v1/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Auth (login, OTP) : plafond serré pour contrer le brute-force.
-app.use('/api/v1/auth', authLimiter, authRoutes);
+// Auth : plafond serré (échecs uniquement) sur les routes qui manipulent un
+// mot de passe ou un code, plafond large sur le reste de /auth.
+const STRICT_AUTH_ROUTES = [
+  '/login',
+  '/register',
+  '/verify-email',
+  '/resend-code',
+  '/forgot-password',
+  '/reset-password',
+];
+for (const route of STRICT_AUTH_ROUTES) {
+  app.use(`/api/v1/auth${route}`, authLimiter);
+}
+app.use('/api/v1/auth', authSoftLimiter, authRoutes);
 
 // Back-office : déjà protégé par JWT + superadmin, plafond propre et large
 // pour ne jamais bloquer le polling de l'appairage WhatsApp.

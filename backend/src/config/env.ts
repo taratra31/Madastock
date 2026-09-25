@@ -16,7 +16,14 @@ const envSchema = z.object({
   ARIARI_WEBHOOK_URL: z.string().default(''),
   RATE_LIMIT_WINDOW_MS: z.string().default('900000').transform(Number),
   RATE_LIMIT_MAX: z.string().default('600').transform(Number),
-  AUTH_RATE_LIMIT_MAX: z.string().default('20').transform(Number),
+  // Plafond ANTI-BRUTE-FORCE : seuls les échecs sont comptés
+  // (`skipSuccessfulRequests`). 10 échecs / 15 min et par IP.
+  AUTH_RATE_LIMIT_MAX: z.string().default('10').transform(Number),
+  // Plafond LARGE pour /auth/me et /auth/refresh : ces appels sont normaux
+  // (chargement de page, retour sur l'onglet, reconnexion) et ne doivent pas
+  // partager le compteur anti-bruteforce, sinon un utilisateur légitime se
+  // fait bloquer avec « Trop de tentatives ».
+  AUTH_SOFT_RATE_LIMIT_MAX: z.string().default('300').transform(Number),
   ADMIN_RATE_LIMIT_MAX: z.string().default('2000').transform(Number),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.string().default('587').transform(Number),
