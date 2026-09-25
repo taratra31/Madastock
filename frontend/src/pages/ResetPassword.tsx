@@ -4,7 +4,13 @@ import { AtSign, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 import api from '../lib/api';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
-import AuthShell from '../components/AuthShell';
+import AuthShell, {
+  authIconCls,
+  authInputCls,
+  authLabelCls,
+  authLinkCls,
+  authPrimaryBtnCls,
+} from '../components/AuthShell';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -34,42 +40,40 @@ export default function ResetPassword() {
     }
   };
 
-  const inputCls =
-    'w-full rounded-xl bg-white/10 ring-1 ring-white/20 px-4 py-3 text-sm text-white placeholder-emerald-100/40 ' +
-    'focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white/15 transition';
-  const iconCls = 'absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-200/70';
+  const eyeBtnCls =
+    'absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition';
 
   return (
     <AuthShell
       title="Nouveau mot de passe"
       subtitle="Saisissez le code reçu et choisissez un nouveau mot de passe."
       footer={
-        <Link to="/forgot-password" className="font-semibold text-emerald-300 hover:text-emerald-200">
+        <Link to="/forgot-password" className={authLinkCls}>
           Demander un nouveau code
         </Link>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-emerald-50/90 mb-1.5">
+          <label htmlFor="email" className={authLabelCls}>
             Email du compte
           </label>
           <div className="relative">
-            <AtSign className={iconCls} />
+            <AtSign className={authIconCls} />
             <input
               id="email"
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`${inputCls} pl-10`}
+              className={`${authInputCls} pl-10`}
               placeholder="votre@email.mg"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="code" className="block text-sm font-medium text-emerald-50/90 mb-1.5">
+          <label htmlFor="code" className={authLabelCls}>
             Code de réinitialisation
           </label>
           <input
@@ -81,20 +85,20 @@ export default function ResetPassword() {
             maxLength={6}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-            className={`${inputCls} text-center text-xl font-bold tracking-[0.4em]`}
+            className={`${authInputCls} text-center text-xl font-bold tracking-[0.4em] text-slate-800`}
             placeholder="000000"
           />
-          <p className="text-[11px] text-emerald-100/60 mt-1.5">
+          <p className="text-[11px] text-slate-400 mt-1.5">
             Code non reçu ? Renseignez votre e-mail sur la page « Mot de passe oublié ».
           </p>
         </div>
 
         <div>
-          <label htmlFor="newPassword" className="block text-sm font-medium text-emerald-50/90 mb-1.5">
+          <label htmlFor="newPassword" className={authLabelCls}>
             Nouveau mot de passe
           </label>
           <div className="relative">
-            <Lock className={iconCls} />
+            <Lock className={authIconCls} />
             <input
               id="newPassword"
               type={showPassword ? 'text' : 'password'}
@@ -103,14 +107,14 @@ export default function ResetPassword() {
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className={`${inputCls} pl-10 pr-11`}
+              className={`${authInputCls} pl-10 pr-11`}
               placeholder="8 caractères minimum"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-lg text-emerald-200/70 hover:text-white hover:bg-white/10 transition"
+              className={eyeBtnCls}
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
@@ -118,11 +122,11 @@ export default function ResetPassword() {
         </div>
 
         <div>
-          <label htmlFor="confirm" className="block text-sm font-medium text-emerald-50/90 mb-1.5">
+          <label htmlFor="confirm" className={authLabelCls}>
             Confirmer le mot de passe
           </label>
           <div className="relative">
-            <Lock className={iconCls} />
+            <Lock className={authIconCls} />
             <input
               id="confirm"
               type={showPassword ? 'text' : 'password'}
@@ -131,7 +135,7 @@ export default function ResetPassword() {
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className={`${inputCls} pl-10`}
+              className={`${authInputCls} pl-10`}
               placeholder="••••••••"
             />
           </div>
@@ -140,7 +144,7 @@ export default function ResetPassword() {
         <button
           type="submit"
           disabled={submitting || code.length !== 6 || newPassword.length < 8}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 disabled:cursor-not-allowed text-[#04140d] font-bold py-3 text-sm transition shadow-lg shadow-emerald-500/20"
+          className={authPrimaryBtnCls}
         >
           {submitting ? (
             <>
