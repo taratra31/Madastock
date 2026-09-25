@@ -10,6 +10,7 @@ import AuthShell, {
   authLinkCls,
   authPrimaryBtnCls,
 } from '../components/AuthShell';
+import FlagMG from '../components/FlagMG';
 
 /** Écriture nationale malgache : 034 12 345 67 (10 chiffres). */
 function formatMgPhone(raw: string): string {
@@ -108,9 +109,7 @@ export default function Login() {
           <div className="relative">
             {isPhone ? (
               <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pr-2.5 border-r border-emerald-200 select-none pointer-events-none">
-                <span className="text-lg leading-none" role="img" aria-label="Madagascar">
-                  🇲🇬
-                </span>
+                <FlagMG className="h-3 w-[1.15rem]" />
                 <span className="text-sm font-semibold text-slate-700">+261</span>
               </span>
             ) : (
@@ -130,8 +129,9 @@ export default function Login() {
             />
           </div>
           {isPhone && (
-            <p className="mt-1.5 text-[11px] text-slate-400">
-              Madagascar 🇲🇬 — tapez les 10 chiffres (ex. 034 12 345 67).
+            <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+              <FlagMG className="h-2.5 w-4" />
+              Madagascar — tapez les 10 chiffres (ex. 034 12 345 67).
             </p>
           )}
         </div>

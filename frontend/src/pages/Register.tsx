@@ -10,6 +10,7 @@ import AuthShell, {
   authLinkCls,
   authPrimaryBtnCls,
 } from '../components/AuthShell';
+import FlagMG from '../components/FlagMG';
 
 const MADAGASCAR_PHONE_PATTERN = /^(32|33|34|35|37|38)\d{7}$/;
 
@@ -141,8 +142,8 @@ export default function Register() {
             style={{ colorScheme: 'light' }}
           >
             <div className="flex shrink-0 items-center gap-2 border-r border-emerald-100 bg-white px-3.5 text-sm font-semibold text-slate-800">
-              <span className="text-lg leading-none" aria-hidden="true">🇲🇬</span>
-              <span aria-hidden="true">+261</span>
+              <FlagMG className="h-3 w-[1.15rem]" />
+              <span>+261</span>
             </div>
             <input
               id="phone"
