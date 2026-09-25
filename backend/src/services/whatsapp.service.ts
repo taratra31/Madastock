@@ -9,6 +9,7 @@ import makeWASocket, {
   type AuthenticationCreds,
   type ConnectionState,
 } from '@whiskeysockets/baileys';
+import pino from 'pino';
 import { env } from '../config/env';
 import prisma from '../lib/prisma';
 
@@ -35,6 +36,8 @@ import prisma from '../lib/prisma';
 // ============================================================================
 
 const KV_TABLE = 'whatsapp_kv';
+
+const logger = pino({ level: process.env.WHATSAPP_LOG_LEVEL || 'silent' });
 
 const isPostgres = (): boolean => env.DATABASE_URL.startsWith('postgres');
 
@@ -149,6 +152,19 @@ let connecting = false;
 let lastQr: string | null = null;
 let isPaired = false;
 let lastError: string | null = null;
+let reconnectTimer: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+
+function scheduleReconnect(): void {
+  if (!isEnabled() || reconnectTimer) return;
+  reconnectAttempts += 1;
+  if (reconnectAttempts > 10) return;
+  const delay = Math.min(30_000, 2_000 * reconnectAttempts);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void connectOnce();
+  }, delay);
+}
 
 function isEnabled(): boolean {
   return (env.WHATSAPP_OTP_ENABLED ?? '').trim().toLowerCase() === '1';
@@ -182,21 +198,14 @@ async function connectOnce(): Promise<WASocket | null> {
     const sock = makeWASocket({
       auth: {
         creds,
-        keys: makeCacheableSignalKeyStore(signalKeys(), {
-          info: () => {},
-          warn: () => {},
-          error: (_input?: object) => {},
-          level: 'silent',
-        } as never),
+        keys: makeCacheableSignalKeyStore(signalKeys(), logger),
       },
       browser: ['MadaStock', 'Chrome', '1.0'],
       printQRInTerminal: false,
       syncFullHistory: false,
       markOnlineOnConnect: false,
       getMessage: async () => undefined,
-      logger: {
-        level: 'silent',
-      } as never,
+      logger,
     });
 
     sock.ev.on('creds.update', (next) => {
@@ -207,26 +216,36 @@ async function connectOnce(): Promise<WASocket | null> {
       const u = update as unknown as {
         qr?: string;
         connection?: string;
-        lastDisconnect?: { error?: { output?: { statusCode?: number } } };
+        lastDisconnect?: { error?: { output?: { statusCode?: number }; message?: string } };
       };
       if (u.qr) {
         lastQr = u.qr;
         lastError = null;
+        reconnectAttempts = 0;
       }
       if (u.connection === 'open') {
         isPaired = true;
         lastQr = null;
+        reconnectAttempts = 0;
       }
       if (u.connection === 'close') {
-        const code = u.lastDisconnect?.error?.output?.statusCode;
+        const error = u.lastDisconnect?.error;
+        const code = error?.output?.statusCode;
+        isPaired = false;
         if (code === DisconnectReason.loggedOut) {
-          isPaired = false;
-          lastError = 'Session expirée (loggedOut) — rescannez le QR';
+          lastError = 'Session expirée (401) — rescannez le QR';
+        } else if (code === DisconnectReason.restartRequired) {
+          lastError = 'WhatsApp exige une mise à jour de Baileys (515)';
+        } else if (code === DisconnectReason.multideviceMismatch) {
+          lastError = 'Session déjà appairée ailleurs (411) — rescannez le QR';
         } else {
-          lastError = 'Connexion WhatsApp fermée';
+          lastError = `Connexion fermée (code ${code ?? 'inconnu'}) : ${error?.message ?? 'erreur réseau'}`;
         }
         socket = null;
         void sock.ev.removeAllListeners('connection.update');
+        if (code !== DisconnectReason.loggedOut) {
+          scheduleReconnect();
+        }
       }
     });
 
