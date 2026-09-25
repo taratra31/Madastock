@@ -271,18 +271,16 @@ export interface WhatsappInfo {
   sender: string;
 }
 
-/** Démarre la session si besoin et attend le QR (jusqu'à ~45 s). */
-export async function getWhatsappQrInfo(): Promise<WhatsappInfo> {
-  if (!isEnabled()) {
-    return { enabled: false, paired: false, qr: null, error: null, sender: senderNumber() };
+/**
+ * Déclenche la connexion en tâche de fond et rend la main immédiatement :
+ * le QR est ensuite lu via whatsappStatus() (polling côté client).
+ * Aucun appel HTTP long — important sur Render (timeout de requête).
+ */
+export function requestWhatsappQr(): WhatsappInfo {
+  if (isEnabled() && !socket && !connecting) {
+    void connectOnce();
   }
-  if (!socket) {
-    await connectOnce();
-  }
-  for (let i = 0; i < 45 && !lastQr && !isPaired && !lastError; i++) {
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  return { enabled: true, paired: isPaired, qr: lastQr, error: lastError, sender: senderNumber() };
+  return whatsappStatus();
 }
 
 /**

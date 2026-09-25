@@ -29,17 +29,34 @@ export default function AdminWhatsApp() {
     },
     refetchInterval: (query) => {
       const current = query.state.data as WhatsappInfo | undefined;
-      return current?.enabled && !current.paired ? 3000 : false;
+      return current?.enabled && !current.paired ? 2000 : false;
     },
   });
 
   const [qrPayload, setQrPayload] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
+  const [pending, setPending] = useState(false);
   const [qrError, setQrError] = useState('');
 
   useEffect(() => {
-    if (data?.qr && data.qr !== qrPayload) setQrPayload(data.qr);
-  }, [data?.qr]);
+    if (data?.qr && data.qr !== qrPayload) {
+      setQrPayload(data.qr);
+      setPending(false);
+    }
+    if (data?.paired) setPending(false);
+  }, [data?.qr, data?.paired]);
+
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(() => {
+      setPending(false);
+      setQrError(
+        data?.error
+          ? `Connexion WhatsApp impossible : ${data.error}`
+          : "Le QR n'a pas été reçu. Vérifiez les logs Render, puis réessayez.",
+      );
+    }, 60_000);
+    return () => clearTimeout(timer);
+  }, [pending, data?.error]);
 
   const { data: qrImage } = useQuery({
     queryKey: ['admin', 'whatsapp-qr', qrPayload],
@@ -48,33 +65,26 @@ export default function AdminWhatsApp() {
   });
 
   const loadQr = async () => {
-    setQrLoading(true);
+    setPending(true);
     setQrError('');
     try {
       const res = await api.get('/admin/whatsapp/qr');
       const info = res.data as WhatsappInfo;
       if (!info.enabled) {
+        setPending(false);
         setQrError('WhatsApp est désactivé : WHATSAPP_OTP_ENABLED=1 est requis sur Render.');
         return;
       }
       if (info.paired) {
+        setPending(false);
         setQrError('Ce numéro est déjà appairé : aucun nouveau scan nécessaire.');
         refetch();
         return;
       }
-      if (info.error) {
-        setQrError(`Connexion WhatsApp impossible : ${info.error}`);
-        return;
-      }
-      if (info.qr) {
-        setQrPayload(info.qr);
-        return;
-      }
-      setQrError('Le QR arrive dans quelques secondes : la page se met à jour automatiquement.');
+      if (info.qr) setQrPayload(info.qr);
     } catch (err) {
-      setQrError(apiError(err, 'Impossible de générer le QR.'));
-    } finally {
-      setQrLoading(false);
+      setPending(false);
+      setQrError(apiError(err, 'Impossible de lancer la génération du QR.'));
     }
   };
 
@@ -155,7 +165,11 @@ export default function AdminWhatsApp() {
             <h2 className="text-sm font-semibold text-slate-800">Appairage du numéro</h2>
           </div>
 
-          {qrImage ? (
+          {pending ? (
+            <p className="text-sm text-slate-500 mb-4">
+              Connexion à WhatsApp en cours… le QR s&apos;affichera automatiquement dès qu&apos;il est reçu.
+            </p>
+          ) : qrImage ? (
             <div className="flex flex-col items-center gap-3">
               <img
                 src={qrImage}
@@ -172,9 +186,9 @@ export default function AdminWhatsApp() {
             </p>
           )}
 
-          <Button className="w-full" onClick={loadQr} disabled={qrLoading || !data.enabled}>
+          <Button className="w-full" onClick={loadQr} disabled={pending || !data.enabled}>
             <Smartphone className="w-4 h-4" />
-            {qrLoading ? 'Génération...' : qrImage ? 'Nouveau QR' : "Obtenir le QR d'appairage"}
+            {pending ? 'Connexion...' : qrImage ? 'Nouveau QR' : "Obtenir le QR d'appairage"}
           </Button>
 
           {qrError && <p className="mt-3 text-xs text-amber-700">{qrError}</p>}
