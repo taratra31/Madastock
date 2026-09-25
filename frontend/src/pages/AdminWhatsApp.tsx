@@ -12,6 +12,7 @@ interface WhatsappInfo {
   qr: string | null;
   error: string | null;
   sender: string;
+  version: string | null;
 }
 
 const STEPS = [
@@ -146,6 +147,10 @@ export default function AdminWhatsApp() {
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500">Numéro expéditeur</dt>
               <dd className="font-medium text-slate-800">{data.sender}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-slate-500">Version WhatsApp Web</dt>
+              <dd className="font-mono text-xs text-slate-600">{data.version ?? '—'}</dd>
             </div>
           </dl>
 
