@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { badRequest, notFound } from '../utils/httpError';
+import { recordCashMovement, removeCashMovements } from './cash.service';
 
 type DecimalLike = { toString(): string };
 
@@ -217,6 +218,21 @@ export async function createSale(storeId: string, userId: string, input: CreateS
     return created;
   });
 
+  // Caisse : une vente réglée en espèces entre dans la session ouverte
+  // (silencieux si aucune caisse n'est ouverte).
+  if ((input.paymentMethod ?? 'CASH') === 'CASH' && amountPaid - change > 0) {
+    await recordCashMovement({
+      storeId,
+      userId,
+      transactionType: 'SALE',
+      amountAr: amountPaid - change,
+      method: 'CASH',
+      source: 'SALE',
+      saleId: sale.id,
+      description: `Vente ${receiptNumber}`,
+    });
+  }
+
   return getSale(storeId, sale.id);
 }
 
@@ -316,6 +332,9 @@ export async function cancelSale(storeId: string, saleId: string, reason?: strin
       });
     }
   });
+
+  // La vente annulée ne doit plus compter dans la caisse.
+  await removeCashMovements({ storeId, saleId: sale.id });
 
   return getSale(storeId, saleId);
 }

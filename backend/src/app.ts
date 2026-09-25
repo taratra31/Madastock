@@ -27,6 +27,11 @@ import saleRoutes from './routes/sale.routes';
 import garageRoutes from './routes/garage.routes';
 import billingRoutes from './routes/billing.routes';
 import adminRoutes from './routes/admin.routes';
+import supplierRoutes from './routes/supplier.routes';
+import brandRoutes from './routes/brand.routes';
+import purchaseRoutes from './routes/purchase.routes';
+import expenseRoutes from './routes/expense.routes';
+import cashRoutes from './routes/cash.routes';
 import * as billingController from './controllers/billing.controller';
 
 const app = express();
@@ -128,6 +133,11 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/sales', saleRoutes);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/garage', garageRoutes);
+app.use('/api/v1/suppliers', supplierRoutes);
+app.use('/api/v1/brands', brandRoutes);
+app.use('/api/v1/purchases', purchaseRoutes);
+app.use('/api/v1/expenses', expenseRoutes);
+app.use('/api/v1/cash', cashRoutes);
 
 // Serve built frontend (production) — same origin, single port
 const distDir = path.join(__dirname, '../../frontend/dist');

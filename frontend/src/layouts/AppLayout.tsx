@@ -28,6 +28,11 @@ import {
   ShieldCheck,
   Wallet,
   MessageCircle,
+  Truck,
+  ShoppingCart,
+  Receipt,
+  Tag,
+  Banknote,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
@@ -51,7 +56,17 @@ const FINANCE_SECTION: NavSection = {
   title: 'Finances',
   items: [
     { label: 'Devis & Factures', to: '/invoices', icon: FileText },
+    { label: 'Dépenses', to: '/expenses', icon: Receipt },
+    { label: 'Caisse', to: '/cash', icon: Banknote },
     { label: 'Abonnement', to: '/billing', icon: CreditCard },
+  ],
+};
+
+const SUPPLY_SECTION: NavSection = {
+  title: 'Approvisionnement',
+  items: [
+    { label: 'Fournisseurs', to: '/suppliers', icon: Truck },
+    { label: 'Achats', to: '/purchases', icon: ShoppingCart },
   ],
 };
 
@@ -83,6 +98,7 @@ function navForSector(sector?: string): NavSection[] {
         items: [
           { label: 'Produits', to: '/products', icon: Package },
           { label: 'Catégories', to: '/categories', icon: Tags },
+          { label: 'Marques', to: '/brands', icon: Tag },
           { label: 'Stock', to: '/stock', icon: Boxes },
           { label: 'Clients', to: '/customers', icon: Users },
           { label: 'Véhicules', to: '/vehicles', icon: Car },
@@ -105,13 +121,13 @@ function navForSector(sector?: string): NavSection[] {
           { label: 'Rappels', to: '/reminders', icon: Bell },
         ],
       },
+      SUPPLY_SECTION,
       FINANCE_SECTION,
       SETTINGS_SECTION,
     ];
   }
 
-  if (sector === 'PHARMACIE') {
-    return [
+  if (sector === 'PHARMACIE') {    return [
       HOME_SECTION,
       {
         title: 'Vente',
@@ -125,10 +141,12 @@ function navForSector(sector?: string): NavSection[] {
         items: [
           { label: 'Produits', to: '/products', icon: Package },
           { label: 'Catégories', to: '/categories', icon: Tags },
+          { label: 'Marques', to: '/brands', icon: Tag },
           { label: 'Stock', to: '/stock', icon: Boxes },
           { label: 'Alertes péremption', to: '/stock?expiry=soon', icon: AlertTriangle },
         ],
       },
+      SUPPLY_SECTION,
       FINANCE_SECTION,
       SETTINGS_SECTION,
     ];
@@ -143,10 +161,12 @@ function navForSector(sector?: string): NavSection[] {
         VENTE_ITEM,
         { label: 'Produits', to: '/products', icon: Package },
         { label: 'Catégories', to: '/categories', icon: Tags },
+        { label: 'Marques', to: '/brands', icon: Tag },
         { label: 'Stock', to: '/stock', icon: Boxes },
         { label: 'Clients', to: '/customers', icon: Users },
       ],
     },
+    SUPPLY_SECTION,
     FINANCE_SECTION,
     SETTINGS_SECTION,
   ];
