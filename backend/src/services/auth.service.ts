@@ -120,6 +120,38 @@ function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+/**
+ * Forme canonique d'un numéro : les 9 derniers chiffres du format local.
+ * 034 00 00 00 0 -> 340000000 | +261 34 00 00 00 0 -> 340000000
+ * (les deux écritures doivent tomber sur la même recherche).
+ */
+export function phoneSuffix(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let digits = String(raw).replace(/\D/g, '');
+  if (digits.length < 6) return null;
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('261') && digits.length > 11) digits = digits.slice(3);
+  if (digits.startsWith('0') && digits.length > 9) digits = digits.slice(1);
+  return digits.length >= 9 ? digits.slice(-9) : digits;
+}
+
+/**
+ * Connexion avec un seul champ : l'utilisateur saisit son email OU son numéro
+ * de téléphone, dans n'importe quel format.
+ */
+async function findUserByEmailOrPhone(raw: string) {
+  if (!raw) return null;
+  if (raw.includes('@')) {
+    return prisma.user.findUnique({ where: { email: raw.toLowerCase() } });
+  }
+  const suffix = phoneSuffix(raw);
+  if (!suffix) return null;
+  return prisma.user.findFirst({
+    where: { phone: { contains: suffix } },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
 // Envoi d'un code OTP : WhatsApp en prioritaire (si activé + numéro connu),
 // sinon repli automatique sur l'e-mail. Ne lève que si AUCUN canal n'a marché.
 async function dispatchOtp(
@@ -141,7 +173,19 @@ async function dispatchOtp(
 export async function register(input: RegisterInput) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
-    throw conflict('Un compte existe déjà avec cet email');
+    throw conflict('Un compte existe déjà avec cet email — connectez-vous plutôt.');
+  }
+
+  // Un même numéro ne doit pas créer un second compte.
+  const suffix = phoneSuffix(input.phone);
+  if (suffix) {
+    const byPhone = await prisma.user.findFirst({
+      where: { phone: { contains: suffix } },
+      select: { id: true },
+    });
+    if (byPhone) {
+      throw conflict('Un compte existe déjà avec ce numéro — connectez-vous plutôt.');
+    }
   }
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -175,14 +219,15 @@ export async function register(input: RegisterInput) {
 }
 
 export async function login(input: LoginInput, meta?: SessionMeta) {
-  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  const raw = (input.identifier || input.email || '').trim();
+  const user = await findUserByEmailOrPhone(raw);
   if (!user) {
-    throw unauthorized('Email ou mot de passe incorrect');
+    throw unauthorized('Email, numéro ou mot de passe incorrect');
   }
 
   const valid = await bcrypt.compare(input.password, user.passwordHash);
   if (!valid) {
-    throw unauthorized('Email ou mot de passe incorrect');
+    throw unauthorized('Email, numéro ou mot de passe incorrect');
   }
 
   if (!user.isActive) {
@@ -199,7 +244,7 @@ export async function login(input: LoginInput, meta?: SessionMeta) {
   });
 
   if (!safeUser || !safeUser.isActive) {
-    throw unauthorized('Email ou mot de passe incorrect');
+    throw unauthorized('Email, numéro ou mot de passe incorrect');
   }
 
   const refreshToken = await createSession(user, meta);

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
+import AuthShell from '../components/AuthShell';
 
 export default function VerifyEmail() {
   const { pendingVerifyEmail, verifyEmail, resendCode, isAuthenticated } = useAuth();
@@ -25,10 +27,12 @@ export default function VerifyEmail() {
     setSubmitting(true);
     try {
       await verifyEmail(code);
-      toast.success('Adresse e-mail vérifiée');
+      toast.success('Compte activé');
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      toast.error((err as AxiosError<{ error: string }>).response?.data?.error ?? 'Code invalide ou expiré');
+      toast.error(
+        (err as AxiosError<{ error: string }>).response?.data?.error ?? 'Code invalide ou expiré',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -53,74 +57,92 @@ export default function VerifyEmail() {
 
   if (!pendingVerifyEmail) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-center">
-          <h1 className="text-xl font-bold text-slate-800 mb-2">Aucune vérification en cours</h1>
-          <p className="text-sm text-slate-500 mb-6">Connectez-vous ou créez un compte pour recevoir un code de vérification.</p>
-          <Link to="/login" className="inline-block bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition-colors">
-            Se connecter
-          </Link>
-        </div>
-      </div>
+      <AuthShell
+        title="Aucune vérification en cours"
+        subtitle="Connectez-vous ou créez un compte pour recevoir un code de vérification."
+      >
+        <Link
+          to="/login"
+          className="w-full inline-flex items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#04140d] font-bold py-3 text-sm transition"
+        >
+          Se connecter
+        </Link>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-        <div className="flex justify-center mb-4">
-          <img src="/logo-madastock.png" alt="MadaStock" className="w-16 h-16 rounded-2xl object-contain border border-slate-200 p-1" />
+    <AuthShell
+      title="Vérifiez votre compte"
+      subtitle={
+        <>
+          Un code à 6 chiffres a été envoyé à{' '}
+          <span className="font-semibold text-white">{pendingVerifyEmail}</span> (WhatsApp ou e-mail).
+        </>
+      }
+      footer={
+        <Link to="/login" className="font-semibold text-emerald-300 hover:text-emerald-200">
+          Retour à la connexion
+        </Link>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="code" className="block text-sm font-medium text-emerald-50/90 mb-1.5">
+            Code de vérification
+          </label>
+          <input
+            id="code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            required
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            className="w-full rounded-xl bg-white/10 ring-1 ring-white/20 px-4 py-3.5 text-center text-2xl font-bold tracking-[0.5em] text-white placeholder-emerald-100/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition"
+            placeholder="000000"
+          />
         </div>
-        <h1 className="text-xl font-bold text-center mb-2">Vérification de votre e-mail</h1>
-        <p className="text-sm text-slate-500 text-center mb-6">
-          Un code a été envoyé à <span className="font-medium text-slate-700">{pendingVerifyEmail}</span>. Saisissez-le pour activer votre compte.
-        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="code" className="block text-sm font-medium text-slate-700 mb-1">Code de vérification</label>
-            <input
-              id="code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              className="w-full border border-slate-300 rounded-lg px-3 py-3 text-center text-2xl font-bold tracking-[0.6em] text-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="______"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting || code.length !== 6}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
-          >
-            {submitting ? 'Vérification...' : 'Vérifier et me connecter'}
-          </button>
-        </form>
-
-        <div className="text-center text-sm text-slate-500 mt-6">
-          {countdown > 0 ? (
-            <span>Renvoyer le code dans {countdown}s</span>
-          ) : (
+        <button
+          type="submit"
+          disabled={submitting || code.length !== 6}
+          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 disabled:cursor-not-allowed text-[#04140d] font-bold py-3 text-sm transition shadow-lg shadow-emerald-500/20"
+        >
+          {submitting ? (
             <>
-              Code non reçu ?{' '}
-              <button type="button" onClick={handleResend} disabled={resending} className="text-green-600 hover:underline font-medium">
-                {resending ? 'Envoi...' : 'Renvoyer le code'}
-              </button>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Vérification...
             </>
+          ) : (
+            'Vérifier et me connecter'
           )}
-        </div>
+        </button>
+      </form>
 
-        <p className="text-center text-sm text-slate-500 mt-4">
-          <Link to="/login" className="text-green-600 hover:underline font-medium">
-            Retour à la connexion
-          </Link>
-        </p>
+      <div className="mt-5 text-center text-sm text-emerald-50/75">
+        {countdown > 0 ? (
+          <span>Renvoyer le code dans {countdown}s</span>
+        ) : (
+          <>
+            Code non reçu ?{' '}
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              className="font-semibold text-emerald-300 hover:text-emerald-200"
+            >
+              {resending ? 'Envoi...' : 'Renvoyer le code'}
+            </button>
+          </>
+        )}
       </div>
-    </div>
+
+      <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-emerald-100/60">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        Le code expire après quelques minutes.
+      </p>
+    </AuthShell>
   );
 }

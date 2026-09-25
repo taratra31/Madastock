@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import app from '../src/app';
+import { registerSchema } from '../src/validators/auth.validator';
 
 const baseUser = {
   id: 'user-1',
@@ -35,6 +36,7 @@ const pendingUser = {
 const prismaMock = vi.hoisted(() => ({
   user: {
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -52,6 +54,48 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock('../src/lib/prisma', () => ({
   default: prismaMock,
 }));
+
+describe('Validation du numéro d’inscription', () => {
+  it.each(['32', '33', '34', '35', '37', '38'])('accepte le préfixe %s', (prefix) => {
+    const result = registerSchema.safeParse({
+      email: 'test@madastock.mg',
+      password: 'password123',
+      fullName: 'Test User',
+      phone: `+261${prefix}1234567`,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    '+261391234567',
+    '+261201234567',
+    '+26134123456',
+    '+2613412345678',
+    '341234567',
+    '+33123456789',
+  ])('refuse le numéro %s', (phone) => {
+    const result = registerSchema.safeParse({
+      email: 'test@madastock.mg',
+      password: 'password123',
+      fullName: 'Test User',
+      phone,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('accepte un numéro vide', () => {
+    const result = registerSchema.safeParse({
+      email: 'test@madastock.mg',
+      password: 'password123',
+      fullName: 'Test User',
+      phone: '',
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
 
 describe('Auth', () => {
   beforeEach(() => {
@@ -96,6 +140,19 @@ describe('Auth', () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('details');
+  });
+
+  it('register : refuse un numéro malgache non autorisé', async () => {
+    const res = await request(app).post('/api/v1/auth/register').send({
+      email: 'test@madastock.mg',
+      password: 'password123',
+      fullName: 'Test User',
+      phone: '+261391234567',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('details');
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
   it('verify-email : connecte avec un code valide', async () => {
@@ -168,6 +225,65 @@ describe('Auth', () => {
     });
 
     expect(res.status).toBe(401);
+  });
+
+  it('login : accepte un numéro de téléphone (champ unique)', async () => {
+    prismaMock.user.findFirst.mockResolvedValue(verifiedUser);
+    prismaMock.user.findUnique.mockResolvedValue(verifiedUser);
+
+    const res = await request(app).post('/api/v1/auth/login').send({
+      identifier: '034 00 000 00',
+      password: 'password123',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('token');
+    // Format local et format international retombent sur la même recherche.
+    expect(prismaMock.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { phone: { contains: '340000000' } },
+      }),
+    );
+  });
+
+  it('login : numéro au format international accepté aussi', async () => {
+    prismaMock.user.findFirst.mockResolvedValue(verifiedUser);
+    prismaMock.user.findUnique.mockResolvedValue(verifiedUser);
+
+    const res = await request(app).post('/api/v1/auth/login').send({
+      identifier: '+261 34 00 00 00 0',
+      password: 'password123',
+    });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { phone: { contains: '340000000' } },
+      }),
+    );
+  });
+
+  it('login : refuse un identifiant vide', async () => {
+    const res = await request(app).post('/api/v1/auth/login').send({
+      password: 'password123',
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('register : refuse un numéro déjà utilisé (pas de doublon)', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    prismaMock.user.findFirst.mockResolvedValue({ id: 'user-1' });
+
+    const res = await request(app).post('/api/v1/auth/register').send({
+      email: 'autre@madastock.mg',
+      password: 'password123',
+      fullName: 'Autre Utilisateur',
+      phone: '+261340000000',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/numéro/i);
   });
 
   it('resend-code : renvoie un message pour un compte non vérifié', async () => {

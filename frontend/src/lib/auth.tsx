@@ -32,7 +32,7 @@ interface AuthContextValue {
   isLoading: boolean;
   pendingVerifyEmail: string | null;
   needsVerification: boolean;
-  login: (email: string, password: string) => Promise<{ requiresVerification: boolean }>;
+  login: (identifier: string, password: string) => Promise<{ requiresVerification: boolean }>;
   register: (data: { email: string; password: string; fullName: string; phone?: string }) => Promise<{ requiresVerification: boolean }>;
   verifyEmail: (code: string) => Promise<void>;
   resendCode: () => Promise<void>;
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginMutation = useMutation({
-    mutationFn: async (vars: { email: string; password: string }) => {
+    mutationFn: async (vars: { identifier: string; password: string }) => {
       setAuthError(null);
       const res = await api.post('/auth/login', vars);
       return res.data as AuthResponse;
@@ -133,8 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: meLoading,
         pendingVerifyEmail,
         needsVerification: !!pendingVerifyEmail,
-        login: async (email, password) => {
-          const data = await loginMutation.mutateAsync({ email, password });
+        login: async (identifier, password) => {
+          const data = await loginMutation.mutateAsync({ identifier, password });
           return { requiresVerification: 'requiresVerification' in data };
         },
         register: async (data) => {
