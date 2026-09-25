@@ -219,11 +219,22 @@ export default function Stores() {
               return (
                 <Card
                   key={m.store.id}
-                  className={`p-5 cursor-pointer transition-all hover:border-green-300 hover:shadow-md ${
+                  className={`p-5 transition-all hover:border-green-300 hover:shadow-md ${
                     isCurrent ? 'ring-2 ring-green-500 border-green-500' : ''
                   }`}
                 >
-                  <button type="button" onClick={() => handleSelect(m.store.id)} className="w-full text-left">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleSelect(m.store.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelect(m.store.id);
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
@@ -272,30 +283,32 @@ export default function Stores() {
                       {!m.store.active && <Badge className="bg-red-50 text-red-600">Inactive</Badge>}
                       <span className="ml-auto text-xs text-slate-400">{m.store.currency}</span>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                  {/* Actions hors de la zone cliquable, sinon le clic
+                      sélectionne la boutique au lieu d'ouvrir la modale. */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEdit(m)}
+                      className="flex-1"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Modifier
+                    </Button>
+                    {m.isOwner && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => openEdit(m)}
-                        className="flex-1"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(m)}
+                        className="hover:text-red-600 hover:bg-red-50"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Modifier
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Supprimer
                       </Button>
-                      {m.isOwner && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDeleteTarget(m)}
-                          className="hover:text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Supprimer
-                        </Button>
-                      )}
-                    </div>
-                  </button>
+                    )}
+                  </div>
                 </Card>
               );
             })}
