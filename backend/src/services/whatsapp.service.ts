@@ -102,6 +102,29 @@ async function kvSet(key: string, value: string): Promise<void> {
 // ---------------------------------------------------------------------------
 const BUFFER_TAG = '__wa_buf__';
 
+function isValidCreds(creds: Partial<AuthenticationCreds> | null): boolean {
+  if (!creds) return false;
+  const noise = creds.noiseKey as { public?: unknown; private?: unknown } | undefined;
+  const identity = creds.signedIdentityKey as { public?: unknown; private?: unknown } | undefined;
+  const isBufferLike = (v: unknown): boolean =>
+    Buffer.isBuffer(v) || v instanceof Uint8Array || (v as { type?: string })?.type === 'Buffer';
+  return (
+    typeof creds.me?.id === 'string' &&
+    isBufferLike(noise?.public) &&
+    isBufferLike(noise?.private) &&
+    isBufferLike(identity?.public) &&
+    isBufferLike(identity?.private)
+  );
+}
+
+async function clearKv(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`DELETE FROM "${KV_TABLE}"`);
+  } catch {
+    // ignoré
+  }
+}
+
 function encodeValue(value: unknown): string {
   return JSON.stringify(value, (_key, val) => {
     if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
@@ -190,10 +213,21 @@ async function connectOnce(): Promise<WASocket | null> {
   connecting = true;
   try {
     await ensureKvTable();
+    let creds: AuthenticationCreds | null = null;
     const rawCreds = await kvGet('creds.json');
-    const creds: AuthenticationCreds = rawCreds
-      ? JSON.parse(rawCreds)
-      : initAuthCreds();
+    if (rawCreds) {
+      try {
+        creds = decodeValue<AuthenticationCreds>(rawCreds);
+      } catch {
+        creds = null;
+      }
+    }
+    if (!creds || !isValidCreds(creds)) {
+      if (rawCreds) {
+        await clearKv();
+      }
+      creds = initAuthCreds();
+    }
 
     const sock = makeWASocket({
       auth: {
@@ -209,7 +243,7 @@ async function connectOnce(): Promise<WASocket | null> {
     });
 
     sock.ev.on('creds.update', (next) => {
-      void kvSet('creds.json', JSON.stringify(next));
+      void kvSet('creds.json', encodeValue(next));
     });
 
     sock.ev.on('connection.update', (update: Partial<ConnectionState>) => {
@@ -299,6 +333,33 @@ export function requestWhatsappQr(): WhatsappInfo {
   if (isEnabled() && !socket && !connecting) {
     void connectOnce();
   }
+  return whatsappStatus();
+}
+
+/** Repart de zéro : efface la session en base et génère un QR neuf. */
+export async function resetWhatsappSession(): Promise<WhatsappInfo> {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (socket) {
+    try {
+      socket.ev.removeAllListeners('creds.update');
+      socket.ev.removeAllListeners('connection.update');
+      await socket.end(undefined);
+    } catch {
+      // ignoré
+    }
+  }
+  socket = null;
+  connecting = false;
+  isPaired = false;
+  lastQr = null;
+  lastError = null;
+  reconnectAttempts = 0;
+  await ensureKvTable();
+  await clearKv();
+  void connectOnce();
   return whatsappStatus();
 }
 

@@ -88,6 +88,19 @@ export default function AdminWhatsApp() {
     }
   };
 
+  const resetSession = async () => {
+    setPending(true);
+    setQrPayload(null);
+    setQrError('');
+    try {
+      await api.post('/admin/whatsapp/reset');
+      await refetch();
+    } catch (err) {
+      setPending(false);
+      setQrError(apiError(err, 'Impossible de réinitialiser la session.'));
+    }
+  };
+
   if (isLoading) return <Loading />;
   if (error) return <ErrorMessage message="Impossible de charger le statut WhatsApp." />;
   if (!data) return null;
@@ -189,6 +202,17 @@ export default function AdminWhatsApp() {
           <Button className="w-full" onClick={loadQr} disabled={pending || !data.enabled}>
             <Smartphone className="w-4 h-4" />
             {pending ? 'Connexion...' : qrImage ? 'Nouveau QR' : "Obtenir le QR d'appairage"}
+          </Button>
+
+          <Button
+            className="w-full mt-2"
+            variant="outline"
+            size="sm"
+            onClick={resetSession}
+            disabled={pending || !data.enabled}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Réinitialiser la session
           </Button>
 
           {qrError && <p className="mt-3 text-xs text-amber-700">{qrError}</p>}

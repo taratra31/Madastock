@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireSuperAdmin } from '../middleware/admin';
 import * as adminController from '../controllers/admin.controller';
-import { requestWhatsappQr, whatsappStatus } from '../services/whatsapp.service';
+import { requestWhatsappQr, resetWhatsappSession, whatsappStatus } from '../services/whatsapp.service';
 
 const router = Router();
 
@@ -14,6 +14,14 @@ router.get('/whatsapp', (_req, res) => {
 
 router.get('/whatsapp/qr', (_req, res) => {
   res.json(requestWhatsappQr());
+});
+
+router.post('/whatsapp/reset', async (_req, res, next) => {
+  try {
+    res.json(await resetWhatsappSession());
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get('/overview', adminController.getOverview);
