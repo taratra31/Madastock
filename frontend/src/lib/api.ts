@@ -6,9 +6,29 @@ const api = axios.create({
   withCredentials: true,
 });
 
-const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/'];
+const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password'];
+
+const isPublicPath = () =>
+  PUBLIC_PATHS.some((p) => window.location.pathname === p || window.location.pathname.startsWith(`${p}/`));
 
 let refreshPromise: Promise<boolean> | null = null;
+let endingSession = false;
+
+/** Session morte : on purge l'état local et on renvoie UNE seule fois vers la connexion. */
+function endSession(): Promise<never> {
+  localStorage.removeItem('madastock_token');
+  localStorage.removeItem('madastock_store_id');
+  // Purge du cache React Query -> `isAuthenticated` passe à false immédiatement,
+  // sinon la landing `/` renverrait encore vers /dashboard.
+  window.dispatchEvent(new CustomEvent('madastock:session-expired'));
+
+  if (!endingSession && !isPublicPath()) {
+    endingSession = true;
+    // `replace` et non `assign` : le bouton « retour » ne renvoie pas au dashboard.
+    window.location.replace('/login?expired=1');
+  }
+  return Promise.reject(new Error('Session expirée'));
+}
 
 async function tryRefresh(): Promise<boolean> {
   if (!refreshPromise) {
@@ -46,9 +66,7 @@ api.interceptors.response.use(
       if (refreshed) {
         return api.request(err.config);
       }
-      if (!PUBLIC_PATHS.some((p) => window.location.pathname.startsWith(p))) {
-        window.location.href = '/login';
-      }
+      return endSession();
     }
     return Promise.reject(err);
   },

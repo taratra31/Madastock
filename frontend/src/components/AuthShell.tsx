@@ -35,7 +35,10 @@ export default function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <div className="min-h-screen relative overflow-hidden bg-emerald-50/40 text-slate-800">
+    <div
+      className="min-h-screen relative overflow-hidden bg-emerald-50/40 text-slate-800"
+      style={{ colorScheme: 'light' }}
+    >
       {/* Fond clair : halos verts et grille discrète */}
       <div
         className="absolute inset-0"
@@ -63,24 +66,24 @@ export default function AuthShell({
       <div className="relative min-h-screen px-4 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-8 lg:gap-10 items-stretch">
           {/* Panneau marque (écrans larges) */}
-          <div className="hidden lg:flex flex-col justify-between rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-8 text-white shadow-xl shadow-emerald-700/20">
+          <div className="hidden lg:flex flex-col justify-between rounded-3xl bg-white p-8 text-slate-800 ring-1 ring-emerald-100 shadow-xl shadow-emerald-900/5">
             <div>
               <div className="inline-flex items-center gap-3">
                 <img
                   src="/logo-madastock.png"
                   alt="MadaStock"
-                  className="w-14 h-14 rounded-2xl object-contain bg-white p-1 shadow-lg"
+                  className="w-14 h-14 rounded-2xl object-contain bg-white p-1 shadow-md ring-1 ring-emerald-100"
                 />
                 <span className="text-2xl font-bold tracking-tight">
-                  Mada<span className="text-emerald-200">Stock</span>
+                  Mada<span className="text-emerald-600">Stock</span>
                 </span>
               </div>
               <h2 className="mt-8 text-4xl font-bold leading-tight">
                 Gérez votre boutique
                 <br />
-                <span className="text-emerald-200">depuis votre téléphone.</span>
+                <span className="text-emerald-600">depuis votre téléphone.</span>
               </h2>
-              <p className="mt-4 text-emerald-50/90 max-w-md">
+              <p className="mt-4 text-slate-500 max-w-md">
                 Le logiciel de gestion pour les commerçants à Madagascar et en Afrique : stock, ventes,
                 factures et rapports au même endroit.
               </p>
@@ -90,16 +93,16 @@ export default function AuthShell({
               {HIGHLIGHTS.map((h) => (
                 <li
                   key={h.title}
-                  className="flex items-start gap-3 rounded-2xl bg-white/10 ring-1 ring-white/20 px-4 py-3"
+                  className="flex items-start gap-3 rounded-2xl bg-emerald-50/70 ring-1 ring-emerald-100 px-4 py-3"
                 >
-                  <span className="mt-0.5 w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 text-white" fill="currentColor">
+                  <span className="mt-0.5 w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 text-emerald-700" fill="currentColor">
                       <path d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" />
                     </svg>
                   </span>
                   <span>
                     <span className="block text-sm font-semibold">{h.title}</span>
-                    <span className="block text-xs text-emerald-50/80">{h.text}</span>
+                    <span className="block text-xs text-slate-500">{h.text}</span>
                   </span>
                 </li>
               ))}

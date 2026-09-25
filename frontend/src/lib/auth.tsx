@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from './api';
 import type { AxiosError } from 'axios';
@@ -45,6 +45,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  // Passe à false quand la session est morte : empêche la requête `me` de
+  // repartir en boucle sur une session invalide.
+  const [sessionActive, setSessionActive] = useState(true);
   const queryClient = useQueryClient();
 
   const { data: meData, isLoading: meLoading } = useQuery({
@@ -54,12 +57,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.data.user as User;
     },
     retry: false,
+    enabled: sessionActive,
   });
 
-  const applyAuth = (user: User) => {
-    setPendingVerifyEmail(null);
-    queryClient.setQueryData(['me'], user);
-  };
+  useEffect(() => {
+    const onExpired = () => {
+      setSessionActive(false);
+      setPendingVerifyEmail(null);
+      setAuthError(null);
+      queryClient.clear();
+      queryClient.setQueryData(['me'], null);
+    };
+    window.addEventListener('madastock:session-expired', onExpired);
+    return () => window.removeEventListener('madastock:session-expired', onExpired);
+  }, [queryClient]);
+
+  const applyAuth = useCallback(
+    (user: User) => {
+      setSessionActive(true);
+      setPendingVerifyEmail(null);
+      queryClient.setQueryData(['me'], user);
+    },
+    [queryClient],
+  );
 
   const loginMutation = useMutation({
     mutationFn: async (vars: { identifier: string; password: string }) => {
@@ -119,8 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     api.post('/auth/logout').catch(() => undefined);
     setPendingVerifyEmail(null);
-    queryClient.setQueryData(['me'], null);
+    setSessionActive(false);
     queryClient.clear();
+    queryClient.setQueryData(['me'], null);
     localStorage.removeItem('madastock_token');
     localStorage.removeItem('madastock_store_id');
   };

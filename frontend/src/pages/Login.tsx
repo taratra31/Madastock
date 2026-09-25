@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { AtSign, Eye, EyeOff, Loader2, Lock, LogIn, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
@@ -14,10 +14,13 @@ import AuthShell, {
 export default function Login() {
   const { login, isAuthenticated, isLoading, authError } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const sessionExpired = searchParams.get('expired') === '1';
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -31,6 +34,8 @@ export default function Login() {
     setSubmitting(true);
     try {
       const result = await login(value, password);
+      if (sessionExpired) searchParams.delete('expired');
+      setSearchParams(searchParams, { replace: true });
       if (result.requiresVerification) {
         toast.info('Vérifiez votre e-mail ou votre WhatsApp pour confirmer le compte');
         navigate('/verify-email', { replace: true });
@@ -57,6 +62,12 @@ export default function Login() {
         </>
       }
     >
+      {sessionExpired && (
+        <div className="mb-5 rounded-xl bg-amber-50 ring-1 ring-amber-200 text-amber-800 text-sm px-4 py-3">
+          Votre session a expiré. Merci de vous reconnecter.
+        </div>
+      )}
+
       {authError && (
         <div className="mb-5 rounded-xl bg-red-50 ring-1 ring-red-200 text-red-700 text-sm px-4 py-3">
           {authError}

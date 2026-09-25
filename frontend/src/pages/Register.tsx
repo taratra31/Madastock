@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { AtSign, Eye, EyeOff, Loader2, Lock, Phone, UserPlus, User } from 'lucide-react';
+import { AtSign, Eye, EyeOff, Loader2, Lock, User, UserPlus } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 import AuthShell, {
@@ -10,6 +10,22 @@ import AuthShell, {
   authLinkCls,
   authPrimaryBtnCls,
 } from '../components/AuthShell';
+
+const MADAGASCAR_PHONE_PATTERN = /^(32|33|34|35|37|38)\d{7}$/;
+
+function normalizeNationalPhone(value: string): string {
+  const compact = value.trim().replace(/[\s.-]/g, '');
+  const hasCountryCode = compact.startsWith('+') || compact.startsWith('00');
+  const isMadagascarCode = compact.startsWith('+261') || compact.startsWith('00261');
+
+  if (hasCountryCode && !isMadagascarCode) return '';
+
+  let digits = compact.replace(/\D/g, '');
+  if (digits.startsWith('00261')) digits = digits.slice(5);
+  else if (digits.startsWith('261')) digits = digits.slice(3);
+  else if (digits.startsWith('0')) digits = digits.slice(1);
+  return digits.slice(0, 9);
+}
 
 export default function Register() {
   const { register, isAuthenticated, isLoading, authError } = useAuth();
@@ -30,9 +46,18 @@ export default function Register() {
       toast.error('Les mots de passe ne correspondent pas');
       return;
     }
+    if (phone && !MADAGASCAR_PHONE_PATTERN.test(phone)) {
+      toast.error('Le numéro doit commencer par 32, 33, 34, 35, 37 ou 38 et contenir 9 chiffres');
+      return;
+    }
     setSubmitting(true);
     try {
-      const result = await register({ email, password, fullName, phone: phone || undefined });
+      const result = await register({
+        email,
+        password,
+        fullName,
+        phone: phone ? `+261${phone}` : undefined,
+      });
       if (result.requiresVerification) {
         toast.success('Compte créé. Le code de vérification arrive.');
         navigate('/verify-email', { replace: true });
@@ -111,17 +136,31 @@ export default function Register() {
           <label htmlFor="phone" className={authLabelCls}>
             Téléphone <span className="text-slate-400 font-normal">(WhatsApp, OTP)</span>
           </label>
-          <div className="relative">
-            <Phone className={iconCls} />
+          <div
+            className="flex overflow-hidden rounded-xl bg-white ring-1 ring-emerald-200 shadow-sm transition focus-within:ring-2 focus-within:ring-emerald-500"
+            style={{ colorScheme: 'light' }}
+          >
+            <div className="flex shrink-0 items-center gap-2 border-r border-emerald-100 bg-white px-3.5 text-sm font-semibold text-slate-800">
+              <span className="text-lg leading-none" aria-hidden="true">🇲🇬</span>
+              <span aria-hidden="true">+261</span>
+            </div>
             <input
               id="phone"
               type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              maxLength={9}
+              pattern="(32|33|34|35|37|38)[0-9]{7}"
+              aria-describedby="phone-help"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={`${inputCls} pl-10`}
-              placeholder="034 00 000 00"
+              onChange={(e) => setPhone(normalizeNationalPhone(e.target.value))}
+              className="min-w-0 flex-1 bg-white px-4 py-3 text-sm text-slate-800 outline-none placeholder-slate-400 focus:bg-white focus:ring-0"
+              placeholder="34 00 000 00"
             />
           </div>
+          <p id="phone-help" className="mt-1.5 text-xs text-slate-500">
+            Préfixes acceptés : 32, 33, 34, 35, 37 ou 38.
+          </p>
         </div>
 
         <div>
