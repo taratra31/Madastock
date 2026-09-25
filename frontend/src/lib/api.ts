@@ -24,9 +24,13 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 api.interceptors.request.use((config) => {
-  const storeId = localStorage.getItem('madastock_store_id');
-  if (storeId) {
-    config.headers['X-Store-Id'] = storeId;
+  // Un en-tête fourni par l'appelant (ex. suppression d'une autre boutique)
+  // garde la priorité sur la boutique courante mémorisée.
+  if (!config.headers['X-Store-Id']) {
+    const storeId = localStorage.getItem('madastock_store_id');
+    if (storeId) {
+      config.headers['X-Store-Id'] = storeId;
+    }
   }
   return config;
 });

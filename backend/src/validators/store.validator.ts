@@ -21,8 +21,10 @@ export const updateStoreSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   address: z.string().trim().max(500).optional(),
   city: z.string().trim().max(100).optional(),
+  country: z.string().trim().max(3).optional(),
   phone: z.string().trim().max(30).optional(),
   email: z.string().trim().email('Email invalide').max(255).optional(),
+  currency: z.string().trim().max(3).optional(),
 });
 
 export const addMemberSchema = z.object({

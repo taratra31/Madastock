@@ -54,6 +54,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (found) {
       localStorage.setItem(STORE_KEY, found.store.id);
       setCurrentStoreState(found.store);
+    } else {
+      // Plus aucune boutique (supprimée) : on ne garde pas une boutique morte.
+      localStorage.removeItem(STORE_KEY);
+      setCurrentStoreState(null);
     }
   };
 
