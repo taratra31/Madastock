@@ -11,6 +11,25 @@ import AuthShell, {
   authPrimaryBtnCls,
 } from '../components/AuthShell';
 
+/** Écriture nationale malgache : 034 12 345 67 (10 chiffres). */
+function formatMgPhone(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('00261')) digits = digits.slice(5);
+  else if (digits.startsWith('261') && digits.length > 10) digits = digits.slice(3);
+  if (digits.length > 10) digits = digits.slice(0, 10);
+  if (digits.length > 0 && !digits.startsWith('0')) digits = `0${digits}`;
+
+  const parts: string[] = [];
+  let i = 0;
+  for (const size of [3, 2, 3, 2]) {
+    if (i >= digits.length) break;
+    parts.push(digits.slice(i, i + size));
+    i += size;
+  }
+  if (i < digits.length) parts.push(digits.slice(i));
+  return parts.join(' ');
+}
+
 export default function Login() {
   const { login, isAuthenticated, isLoading, authError } = useAuth();
   const navigate = useNavigate();
@@ -21,6 +40,13 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   const sessionExpired = searchParams.get('expired') === '1';
+  // Dès qu'un chiffre est tapé, le champ bascule en mode numéro : le drapeau
+  // et l'indicatif +261 apparaissent, l'email n'en a pas.
+  const isPhone = !identifier.includes('@') && /\d/.test(identifier);
+
+  const handleIdentifierChange = (raw: string) => {
+    setIdentifier(raw.includes('@') || !/\d/.test(raw) ? raw : formatMgPhone(raw));
+  };
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -80,19 +106,34 @@ export default function Login() {
             Email ou numéro de téléphone
           </label>
           <div className="relative">
-            <AtSign className={authIconCls} />
+            {isPhone ? (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pr-2.5 border-r border-emerald-200 select-none pointer-events-none">
+                <span className="text-lg leading-none" role="img" aria-label="Madagascar">
+                  🇲🇬
+                </span>
+                <span className="text-sm font-semibold text-slate-700">+261</span>
+              </span>
+            ) : (
+              <AtSign className={authIconCls} />
+            )}
             <input
               id="identifier"
               name="identifier"
               type="text"
+              inputMode={isPhone ? 'tel' : 'email'}
               autoComplete="username"
               required
               value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              className={`${authInputCls} pl-10`}
-              placeholder="votre@email.mg ou 034 00 000 00"
+              onChange={(e) => handleIdentifierChange(e.target.value)}
+              className={`${authInputCls} ${isPhone ? 'pl-[5.25rem]' : 'pl-10'}`}
+              placeholder={isPhone ? '034 00 000 00' : 'votre@email.mg ou 034 00 000 00'}
             />
           </div>
+          {isPhone && (
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              Madagascar 🇲🇬 — tapez les 10 chiffres (ex. 034 12 345 67).
+            </p>
+          )}
         </div>
 
         <div>
