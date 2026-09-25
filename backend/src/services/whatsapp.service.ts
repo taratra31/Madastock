@@ -36,6 +36,10 @@ import prisma from '../lib/prisma';
 
 const KV_TABLE = 'whatsapp_kv';
 
+const isPostgres = (): boolean => env.DATABASE_URL.startsWith('postgres');
+
+const ph = (index: number): string => (isPostgres() ? `$${index}` : '?');
+
 // ---------------------------------------------------------------------------
 // KV persistant dans Neon (session Baileys + creds + clés).
 // ---------------------------------------------------------------------------
@@ -67,7 +71,7 @@ async function ensureKvTable(): Promise<void> {
 async function kvGet(key: string): Promise<string | null> {
   try {
     const rows = await prisma.$queryRawUnsafe<{ value: string }[]>(
-      `SELECT "value" FROM "${KV_TABLE}" WHERE "key" = ?`,
+      `SELECT "value" FROM "${KV_TABLE}" WHERE "key" = ${ph(1)}`,
       key,
     );
     return rows?.[0]?.value ?? null;
@@ -80,7 +84,7 @@ async function kvSet(key: string, value: string): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${KV_TABLE}" ("key", "value", "updatedAt")
-       VALUES (?, ?, CURRENT_TIMESTAMP)
+       VALUES (${ph(1)}, ${ph(2)}, CURRENT_TIMESTAMP)
        ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value", "updatedAt" = CURRENT_TIMESTAMP`,
       key,
       value,
