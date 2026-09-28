@@ -240,6 +240,9 @@ async function applyNotification(payment: NonNullable<PaymentRecord>, info: Aria
       log('PAYMENT_AMOUNT_MISMATCH', `${ref} attendu=${Number(payment.amountAr)} reçu=${info.amount}`);
       return false;
     }
+    // Le message est récupéré dans la transaction puis envoyé APRÈS le commit.
+    const out: { notice?: SubscriptionNotice } = {};
+
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const fresh = await tx.payment.findUnique({ where: { merchantReference: ref } });
       if (!fresh || fresh.status === 'SUCCESS') return;
@@ -254,8 +257,12 @@ async function applyNotification(payment: NonNullable<PaymentRecord>, info: Aria
         },
       });
 
-      await activateSubscription(tx, fresh.storeId, fresh.planId, fresh.amountAr);
+      out.notice = await activateSubscription(tx, fresh.storeId, fresh.planId, fresh.amountAr);
     });
+
+    if (out.notice) {
+      await notifyOwners({ storeId: payment.storeId, ...out.notice });
+    }
     log('ARIARI_PAYMENT_SUCCESS', ref);
     return true;
   }
@@ -298,12 +305,29 @@ async function applyNotification(payment: NonNullable<PaymentRecord>, info: Aria
   return true;
 }
 
+/** Message d'information à envoyer APRÈS le commit (jamais dans la transaction). */
+interface SubscriptionNotice {
+  type: 'SUBSCRIPTION_ACTIVATED' | 'SUBSCRIPTION_RENEWED';
+  title: string;
+  message: string;
+  data: Record<string, unknown>;
+}
+
 /**
  * Active (ou prolonge) l'abonnement dans LA MÊME transaction que le paiement PAID.
  * La durée vient du plan, en JOURS. Si l'abonnement n'est pas encore terminé, la
  * nouvelle période s'empile sur les jours restants : rien n'est perdu.
+ *
+ * ⚠ Ne jamais écrire dans `notifications` ici : une requête sur le client global
+ * à l'intérieur d'une transaction interactive bloque la base jusqu'au timeout de 5 s
+ * (P2028) et le paiement est perdu. On renvoie donc le message à l'appelant.
  */
-async function activateSubscription(tx: Prisma.TransactionClient, storeId: string, planId: string, amountAr: Prisma.Decimal | number) {
+async function activateSubscription(
+  tx: Prisma.TransactionClient,
+  storeId: string,
+  planId: string,
+  amountAr: Prisma.Decimal | number,
+): Promise<SubscriptionNotice> {
   const plan = await tx.plan.findUnique({ where: { id: planId } });
   if (!plan || !plan.isActive) throw badRequest('Offre introuvable');
 
@@ -323,7 +347,7 @@ async function activateSubscription(tx: Prisma.TransactionClient, storeId: strin
     cancelledAt: null,
   };
 
-  const subscription = await tx.subscription.upsert({
+  await tx.subscription.upsert({
     where: { storeId },
     update: data,
     create: { storeId, ...data },
@@ -336,17 +360,13 @@ async function activateSubscription(tx: Prisma.TransactionClient, storeId: strin
       ` fin=${period.end.toISOString()}`,
   );
 
-  // Notification hors transaction : ne doit jamais faire échouer le paiement.
   const durationDays = planDurationDays(plan);
-  await notifyOwners({
-    storeId,
+  return {
     type: period.renewed ? 'SUBSCRIPTION_RENEWED' : 'SUBSCRIPTION_ACTIVATED',
     title: period.renewed ? 'Abonnement renouvelé' : 'Abonnement activé',
     message: period.renewed
       ? `Abonnement ${plan.name} : ${durationDays} jours ajoutés. Nouveau départ le ${period.start.toLocaleDateString('fr-FR')}, fin le ${period.end.toLocaleDateString('fr-FR')}.`
       : `Abonnement ${plan.name} activé pour ${durationDays} jours, jusqu'au ${period.end.toLocaleDateString('fr-FR')}.`,
     data: { planId, planName: plan.name, durationDays, to: '/billing' },
-  });
-
-  return subscription;
+  };
 }

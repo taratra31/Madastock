@@ -14,6 +14,8 @@ const prismaMock = vi.hoisted(() => ({
   plan: { findUnique: vi.fn() },
   store: { findUnique: vi.fn() },
   subscription: { findUnique: vi.fn(), upsert: vi.fn() },
+  storeMember: { findMany: vi.fn() },
+  notification: { count: vi.fn(), createMany: vi.fn() },
   $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(prismaMock)),
 }));
 
@@ -194,6 +196,41 @@ describe('Billing service - activation automatique (re-lecture API)', () => {
     await billingService.handleWebhook(Buffer.from(JSON.stringify({ _id: 'pay-ar-1', status: 'paid' })));
 
     expect(prismaMock.subscription.upsert).not.toHaveBeenCalled();
+  });
+
+  it('notification hors transaction : le paiement ne peut pas expirer (P2028)', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(pendingPayment);
+    prismaMock.plan.findUnique.mockResolvedValue(activePlan);
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1' });
+    prismaMock.subscription.findUnique.mockResolvedValue(null);
+
+    // Une notification écrite DANS la transaction interactive bloquerait la base
+    // jusqu'au timeout de 5 s. Ici elle est appelée après le commit.
+    const callOrder: string[] = [];
+    prismaMock.subscription.upsert.mockImplementation(async () => {
+      callOrder.push('upsert');
+      return { id: 'sub-1' };
+    });
+    prismaMock.notification.createMany.mockImplementation(async () => {
+      callOrder.push('notification');
+      return { count: 1 };
+    });
+    prismaMock.storeMember.findMany.mockResolvedValue([{ userId: 'user-owner' }]);
+    prismaMock.notification.count.mockResolvedValue(0);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(ariariApiResponse(ariariPayment({ status: 'paid', rest: 0 }))),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await billingService.handleWebhook(Buffer.from(JSON.stringify({ _id: 'pay-ar-1', status: 'paid' })));
+
+    expect(callOrder).toEqual(['upsert', 'notification']);
+    expect(prismaMock.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ type: 'SUBSCRIPTION_ACTIVATED' })],
+    });
   });
 
   it('un attaquant ne peut pas inventer un PAID (read-back fait foi)', async () => {

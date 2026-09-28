@@ -70,6 +70,7 @@ export function useMarkAllNotificationsRead() {
   return useMutation({
     mutationFn: () => api.patch('/notifications/read-all'),
     onSuccess: () => {
+      // Le badge de la cloche a sa propre clé ('notifications', 'unread').
       void qc.invalidateQueries({ queryKey: ['notifications'] });
     },
   });

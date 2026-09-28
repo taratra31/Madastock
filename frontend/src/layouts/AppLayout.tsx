@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Package,
@@ -179,6 +179,7 @@ function navForSector(sector?: string): NavSection[] {
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const { memberships, currentStore, setCurrentStore, selectFirstStore } = useStores();
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
@@ -250,6 +251,10 @@ export default function AppLayout() {
   const switchStore = (id: string) => {
     setCurrentStore(id);
     setSidebarOpen(false);
+    // Tout le cache react-query dépend de la boutique (X-Store-Id) : sans cela
+    // la cloche, les listes et les tableaux de bord afficheraient encore
+    // les données de la boutique précédente.
+    queryClient.invalidateQueries();
     if (location.pathname !== '/dashboard') navigate('/dashboard');
   };
 

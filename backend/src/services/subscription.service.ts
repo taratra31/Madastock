@@ -15,13 +15,14 @@ export function addDays(date: Date, days: number): Date {
 
 /**
  * Nombre de jours entiers restants (0 dès que la période est terminée).
- * Plancher et non arrondi : un abonnement qui finit dans 1 j 2 h affiche « J-1 »,
- * ce qui est cohérent avec la fenêtre J-n de `subscriptionsWithDaysLeft`.
+ * Arrondi supérieur : juste après un paiement de 30 jours on affiche « J-30 »
+ * (et non J-29), et la fenêtre J-n de `subscriptionsWithDaysLeft` tombe
+ * exactement sur la même valeur.
  */
 export function daysLeft(periodEnd: Date | null | undefined, now = new Date()): number {
   if (!periodEnd) return 0;
   const diff = new Date(periodEnd).getTime() - now.getTime();
-  return diff <= 0 ? 0 : Math.floor(diff / DAY_MS);
+  return diff <= 0 ? 0 : Math.ceil(diff / DAY_MS);
 }
 
 export function planDurationDays(plan: { durationDays?: number | null; durationMonths?: number | null }): number {

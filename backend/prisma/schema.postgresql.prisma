@@ -714,6 +714,9 @@ model Notification {
   title     String
   message   String
   dataJson  String?
+  /// Ce qui distingue deux notifications du même type (produit, jour J-3/J-1…) :
+  /// sert à ne pas renvoyer deux fois la même alerte le même jour.
+  dedupeKey String?
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
@@ -723,6 +726,7 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([storeId])
+  @@index([storeId, type, dedupeKey])
   @@map("notifications")
 }
 

@@ -27,6 +27,7 @@ async function runSubscriptionAlerts(now = new Date()) {
           ? `L'essai gratuit de la boutique « ${sub.store.name} » se termine le ${sub.currentPeriodEnd.toLocaleDateString('fr-FR')}. Prenez un abonnement pour ne pas perdre l'accès.`
           : `L'abonnement ${sub.plan.name} de la boutique « ${sub.store.name} » se termine le ${sub.currentPeriodEnd.toLocaleDateString('fr-FR')}. Renouvelez pour continuer sans interruption.`,
         data: { daysLeft: days, planId: sub.planId, planName: sub.plan.name, status: sub.status, to: '/billing' },
+        dedupeKey: `J-${days} · ${sub.plan.name}`,
         since,
       });
     }
@@ -42,6 +43,7 @@ async function runSubscriptionAlerts(now = new Date()) {
         title: 'Abonnement expiré',
         message: `L'abonnement de la boutique « ${store.name} » est arrivé à terme. Vos données sont conservées : renouvelez pour reprendre.`,
         data: { to: '/billing' },
+        dedupeKey: `expiré · ${store.id}`,
         since,
       });
     }
@@ -82,6 +84,7 @@ async function runLowStockAlerts() {
         minStock: threshold,
         to: '/stock',
       },
+      dedupeKey: `stock · ${stock.product!.id}`,
       since,
     });
   }
@@ -109,6 +112,7 @@ async function runReminderAlerts() {
       title: r.title,
       message: `Rappel du jour : ${r.message ?? who}`,
       data: { reminderId: r.id, to: '/reminders' },
+      dedupeKey: `rappel · ${r.id}`,
       since,
     });
   }

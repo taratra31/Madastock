@@ -130,12 +130,22 @@ beforeEach(() => {
 });
 
 describe('Abonnement : compte à rebours en jours', () => {
-  it('daysLeft compte les jours restants (J-30 puis J-1 puis 0)', () => {
+  it('daysLeft compte les jours restants (J-30 juste après paiement, puis J-1, puis 0)', () => {
     const now = new Date('2026-10-01T12:00:00.000Z');
-    expect(subscriptionService.daysLeft(new Date(now.getTime() + 30 * DAY), now)).toBe(30);
-    expect(subscriptionService.daysLeft(new Date(now.getTime() + 1 * DAY + 60 * 60 * 1000), now)).toBe(1);
-    expect(subscriptionService.daysLeft(new Date(now.getTime() + 5 * 60 * 1000), now)).toBe(0);
+    // Juste après un paiement de 30 jours : J-30 (et non J-29).
+    expect(subscriptionService.daysLeft(new Date(now.getTime() + 30 * DAY - 1000), now)).toBe(30);
+    expect(subscriptionService.daysLeft(new Date(now.getTime() + 1 * DAY + 60 * 60 * 1000), now)).toBe(2);
+    expect(subscriptionService.daysLeft(new Date(now.getTime() + 1 * DAY), now)).toBe(1);
+    expect(subscriptionService.daysLeft(new Date(now.getTime() + 5 * 60 * 1000), now)).toBe(1);
     expect(subscriptionService.daysLeft(new Date(now.getTime() - DAY), now)).toBe(0);
+  });
+
+  it('la fenêtre J-n tombe exactement sur la valeur affichée', () => {
+    const now = new Date('2026-10-01T12:00:00.000Z');
+    // 3 jours moins 1 ms => la fenêtre J-3 doit encore la prendre.
+    expect(subscriptionService.daysLeft(new Date(now.getTime() + 3 * DAY - 1), now)).toBe(3);
+    // 3 jours + 1 ms => J-4, plus la fenêtre J-3.
+    expect(subscriptionService.daysLeft(new Date(now.getTime() + 3 * DAY + 1), now)).toBe(4);
   });
 
   it('planDurationDays lit durationDays, sinon 30', () => {
@@ -181,6 +191,14 @@ describe('Abonnement : compte à rebours en jours', () => {
     expect(state?.isLive).toBe(true);
     expect(state?.remainingPercent).toBeCloseTo(33, 0);
     expect(state?.planName).toBe('PRO');
+  });
+
+  it('juste après un paiement de 30 jours, l\'écran affiche J-30', async () => {
+    prismaMock.subscription.findUnique.mockResolvedValue(
+      sub({ currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * DAY) }),
+    );
+    const state = await subscriptionService.getSubscriptionState('store-1');
+    expect(state?.daysRemaining).toBe(30);
   });
 
   it('getSubscriptionState bascule en EXPIRED quand la date est passée (sans cron)', async () => {
@@ -237,20 +255,68 @@ describe('Notifications', () => {
     });
   });
 
-  it('notifyOwners ne duplique pas si une notification du jour existe déjà', async () => {
+  it('notifyOwners ne duplique pas si la même clé existe déjà aujourd\'hui', async () => {
     prismaMock.storeMember.findMany.mockResolvedValue([{ userId: 'user-owner' }]);
     prismaMock.notification.count.mockResolvedValue(1);
 
     const created = await notificationService.notifyOwners({
       storeId: 'store-1',
       type: 'LOW_STOCK',
-      title: 'Stock bas',
+      title: 'Stock bas : Riz 5kg',
       message: 'Riz',
+        dedupeKey: 'stock · p-1',
       since: new Date(),
     });
 
     expect(created).toBe(0);
     expect(prismaMock.notification.createMany).not.toHaveBeenCalled();
+    expect(prismaMock.notification.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: 'LOW_STOCK', dedupeKey: 'stock · p-1' }),
+      }),
+    );
+  });
+
+  it('sans dedupeKey, pas de contrôle de doublon (activation, paiement)', async () => {
+    prismaMock.storeMember.findMany.mockResolvedValue([{ userId: 'user-owner' }]);
+    prismaMock.notification.count.mockResolvedValue(1);
+
+    const created = await notificationService.notifyOwners({
+      storeId: 'store-1',
+      type: 'SUBSCRIPTION_ACTIVATED',
+      title: 'Abonnement activé',
+      message: 'Merci !',
+    });
+
+    expect(created).toBe(1);
+    expect(prismaMock.notification.count).not.toHaveBeenCalled();
+    expect(prismaMock.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ dedupeKey: null })],
+    });
+  });
+
+  it('deux alertes de stock différentes partent toutes les deux', async () => {
+    prismaMock.storeMember.findMany.mockResolvedValue([{ userId: 'user-owner' }]);
+    prismaMock.notification.count.mockResolvedValue(0);
+
+    await notificationService.notifyOwners({
+      storeId: 'store-1',
+      type: 'LOW_STOCK',
+      title: 'Stock bas : Riz 5kg',
+      message: 'Riz',
+      dedupeKey: 'stock · p-1',
+      since: new Date(),
+    });
+    await notificationService.notifyOwners({
+      storeId: 'store-1',
+      type: 'LOW_STOCK',
+      title: 'Stock bas : Huile',
+      message: 'Huile',
+      dedupeKey: 'stock · p-2',
+      since: new Date(),
+    });
+
+    expect(prismaMock.notification.createMany).toHaveBeenCalledTimes(2);
   });
 
   it('notifyOwners ne casse jamais l\'action métier (silencieux)', async () => {
@@ -379,9 +445,15 @@ describe('Tâches quotidiennes (scheduler)', () => {
       },
       {
         storeId: 'store-1',
-        quantityAr: 90,
+        quantityAr: 1,
         isShared: false,
         product: { id: 'p-2', name: 'Huile', trackStock: true, lowStockThreshold: 5 },
+      },
+      {
+        storeId: 'store-1',
+        quantityAr: 90,
+        isShared: false,
+        product: { id: 'p-3', name: 'Sucre', trackStock: true, lowStockThreshold: 5 },
       },
     ]);
 
@@ -389,20 +461,26 @@ describe('Tâches quotidiennes (scheduler)', () => {
 
     const created = prismaMock.notification.createMany.mock.calls.flatMap((c) => c[0].data as any[]);
     const low = created.filter((n) => n.type === 'LOW_STOCK');
-    expect(low).toHaveLength(1);
-    expect(low[0].title).toContain('Riz 5kg');
+    // 2 produits sous le seuil => 2 notifications (et non une seule).
+    expect(low).toHaveLength(2);
+    expect(low.map((n) => n.title)).toEqual(
+      expect.arrayContaining(['Stock bas : Riz 5kg', 'Stock bas : Huile']),
+    );
   });
 
-  it('rappelle les rappels CRM du jour', async () => {
+  it('rappelle les rappels CRM du jour (chacun le sien)', async () => {
     prismaMock.subscription.findMany.mockResolvedValue([]);
     prismaMock.stock.findMany.mockResolvedValue([]);
     prismaMock.reminder.findMany.mockResolvedValue([
       { id: 'rem-1', storeId: 'store-1', title: 'Relancer Rakoto', message: 'Appel à faire', customer: { firstName: 'Rakoto', lastName: 'R' } },
+      { id: 'rem-2', storeId: 'store-1', title: 'Relancer Rasoa', message: null, customer: null },
     ]);
 
     await schedulerService.runDailyJobs();
 
     const created = prismaMock.notification.createMany.mock.calls.flatMap((c) => c[0].data as any[]);
-    expect(created.some((n) => n.type === 'REMINDER_DUE' && n.title === 'Relancer Rakoto')).toBe(true);
+    const reminders = created.filter((n) => n.type === 'REMINDER_DUE');
+    expect(reminders).toHaveLength(2);
+    expect(reminders.map((n) => n.title)).toEqual(['Relancer Rakoto', 'Relancer Rasoa']);
   });
 });

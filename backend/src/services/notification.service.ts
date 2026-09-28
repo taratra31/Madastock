@@ -16,8 +16,15 @@ export interface NotifyInput {
   title: string;
   message: string;
   data?: Record<string, unknown>;
-  /** Ne pas dupliquer si une notification du même type existe depuis `since`. */
+  /** Ne pas dupliquer si la même clé a déjà été notifiée depuis `since`. */
   since?: Date;
+  /**
+   * Ce qui distingue deux notifications du même type (produit concerné, jour J-3
+   * ou J-1…). Sans cela, une seule alerte « stock bas » partirait par jour et par
+   * boutique au lieu d'une par produit. Absente = pas de contrôle de doublon
+   * (activation d'abonnement, paiement : on veut toujours prévenir).
+   */
+  dedupeKey?: string;
 }
 
 function serialize(n: any) {
@@ -54,11 +61,14 @@ export async function notifyOwners(input: NotifyInput): Promise<number> {
     });
     if (members.length === 0) return 0;
 
-    if (input.since) {
+    const key = input.dedupeKey ?? null;
+
+    if (input.since && key) {
       const already = await prisma.notification.count({
         where: {
           storeId: input.storeId,
           type: input.type,
+          dedupeKey: key,
           createdAt: { gte: input.since },
         },
       });
@@ -73,6 +83,7 @@ export async function notifyOwners(input: NotifyInput): Promise<number> {
         title: input.title,
         message: input.message,
         dataJson: input.data ? JSON.stringify(input.data) : null,
+        dedupeKey: key,
       })),
     });
     return members.length;
