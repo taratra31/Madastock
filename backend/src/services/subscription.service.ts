@@ -93,13 +93,16 @@ export function isLive(subscription: SubscriptionRow | null | undefined, now = n
 
 /**
  * États des abonnements dont la période est terminée : on les passe EXPIRED.
- * Retourne les boutiques concernées pour pouvoir notifier leurs propriétaires.
+ * Les boutiques internes (`billingExempt`, ex. le compte admin démo) ne sont
+ * jamais expirées. Retourne les boutiques concernées pour pouvoir notifier
+ * leurs propriétaires.
  */
 export async function expireDueSubscriptions(now = new Date()): Promise<string[]> {
   const due = await prisma.subscription.findMany({
     where: {
       status: { in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] },
       currentPeriodEnd: { lte: now },
+      store: { billingExempt: false },
     },
     select: { id: true, storeId: true },
   });
@@ -116,12 +119,14 @@ export async function expireDueSubscriptions(now = new Date()): Promise<string[]
  * Abonnements dont il reste exactement `days` jours.
  * daysLeft = ceil(reste / DAY) donc « J-n » équivaut à
  * (n-1) jours < reste <= n jours.
+ * Les boutiques internes (admin démo) sont exclues : aucune alerte d'expiration.
  */
 export async function subscriptionsWithDaysLeft(days: number, now = new Date()) {
   return prisma.subscription.findMany({
     where: {
       status: { in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] },
       currentPeriodEnd: { gt: addDays(now, days - 1), lte: addDays(now, days) },
+      store: { billingExempt: false },
     },
     include: { plan: true, store: { select: { id: true, name: true } } },
   });
@@ -131,20 +136,25 @@ export async function subscriptionsWithDaysLeft(days: number, now = new Date()) 
  * Vue complète de l'abonnement d'une boutique : statut réel + compte à rebours.
  * `status` est corrigé à la volée si la date de fin est passée (aucun cron requis
  * pour que l'interface soit juste).
+ * Une boutique interne (admin démo) est TOUJOURS active : aucune expiration,
+ * aucun paiement requis.
  */
 export async function getSubscriptionState(storeId: string, now = new Date()) {
   const subscription = await prisma.subscription.findUnique({
     where: { storeId },
-    include: { plan: true },
+    include: { plan: true, store: { select: { billingExempt: true } } },
   });
   if (!subscription) return null;
 
+  const billingExempt = subscription.store.billingExempt;
+
   const expired =
+    !billingExempt &&
     LIVE_STATUSES.includes(subscription.status) &&
     new Date(subscription.currentPeriodEnd).getTime() <= now.getTime();
 
-  const status = expired ? 'EXPIRED' : subscription.status;
-  const remaining = daysLeft(subscription.currentPeriodEnd, now);
+  const status = expired ? 'EXPIRED' : billingExempt ? 'ACTIVE' : subscription.status;
+  const remaining = billingExempt ? planDurationDays(subscription.plan) : daysLeft(subscription.currentPeriodEnd, now);
   const trialRemaining = subscription.trialEndsAt ? daysLeft(subscription.trialEndsAt, now) : 0;
   const total = status === 'TRIALING' && trialRemaining > 0 ? TRIAL_DAYS : planDurationDays(subscription.plan);
 
@@ -157,8 +167,10 @@ export async function getSubscriptionState(storeId: string, now = new Date()) {
     durationDays: planDurationDays(subscription.plan),
     status,
     storedStatus: subscription.status,
-    isExpired: status === 'EXPIRED' || status === 'CANCELLED',
-    isLive: LIVE_STATUSES.includes(status),
+    /* Boutique interne (admin/démo) : aucun paiement, jamais d'expiration. */
+    billingExempt,
+    isExpired: !billingExempt && (status === 'EXPIRED' || status === 'CANCELLED'),
+    isLive: billingExempt || LIVE_STATUSES.includes(status),
     isTrial: status === 'TRIALING',
     currentPeriodStart: subscription.currentPeriodStart,
     currentPeriodEnd: subscription.currentPeriodEnd,

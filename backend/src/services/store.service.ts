@@ -15,6 +15,11 @@ export async function createStore(userId: string, input: CreateStoreInput) {
   // le compte à rebours affiché (J-13, J-12...) soit le seul vrai.
   const trial = trialPeriod(now);
 
+  // Les boutiques créées par un superadmin (compte interne MadaStock) sont
+  // exemptées : aucun paiement, jamais d'expiration.
+  const creator = await prisma.user.findUnique({ where: { id: userId }, select: { isSuperAdmin: true } });
+  const billingExempt = !!creator?.isSuperAdmin;
+
   const result = await prisma.$transaction(async (tx) => {
     const store = await tx.store.create({
       data: {
@@ -27,6 +32,7 @@ export async function createStore(userId: string, input: CreateStoreInput) {
         phone: input.phone,
         email: input.email,
         currency: input.currency,
+        billingExempt,
       },
     });
 

@@ -82,7 +82,7 @@ async function main() {
   // --- Boutique Mounaya démo ---
   const store = await prisma.store.upsert({
     where: { slug: 'mounaya' },
-    update: {},
+    update: { billingExempt: true },
     create: {
       name: 'Mounaya',
       slug: 'mounaya',
@@ -90,6 +90,7 @@ async function main() {
       currency: 'MGA',
       country: 'MG',
       city: 'Antananarivo',
+      billingExempt: true,
     },
   });
 

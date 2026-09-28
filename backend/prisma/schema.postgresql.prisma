@@ -129,6 +129,8 @@ model Store {
   currency     String         @default("MGA")
   timezone     String         @default("Indian/Antananarivo")
   active       Boolean        @default(true)
+  /// Boutique interne (admin/démo) : aucun paiement, jamais d'expiration.
+  billingExempt Boolean       @default(false)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
@@ -191,8 +193,6 @@ model Plan {
   priceAr          Decimal      
   billingCycle     String @default("MONTHLY")
   durationMonths   Int          @default(1)
-  /// Durée de l'offre en jours : c'est cette valeur qui fait le compte à rebours.
-  durationDays     Int          @default(30)
   maxUsers         Int          @default(1)
   maxProducts      Int          @default(50)
   maxWarehouses    Int          @default(1)
@@ -714,9 +714,6 @@ model Notification {
   title     String
   message   String
   dataJson  String?
-  /// Ce qui distingue deux notifications du même type (produit, jour J-3/J-1…) :
-  /// sert à ne pas renvoyer deux fois la même alerte le même jour.
-  dedupeKey String?
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
@@ -726,7 +723,6 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([storeId])
-  @@index([storeId, type, dedupeKey])
   @@map("notifications")
 }
 

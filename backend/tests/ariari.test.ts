@@ -360,19 +360,31 @@ describe('Billing service - activation automatique (re-lecture API)', () => {
 });
 
 describe('Création de paiement (createCheckout)', () => {
+  it('refuse une boutique introuvable', async () => {
+    prismaMock.store.findUnique.mockResolvedValue(null);
+    await expect(billingService.createCheckout('store-1', 'user-1', 'plan-inconnu')).rejects.toThrow('Boutique introuvable');
+  });
+
   it('refuse un plan inexistant', async () => {
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', billingExempt: false });
     prismaMock.plan.findUnique.mockResolvedValue(null);
     await expect(billingService.createCheckout('store-1', 'user-1', 'plan-inconnu')).rejects.toThrow('Offre introuvable');
   });
 
   it('refuse un plan inactif', async () => {
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', billingExempt: false });
     prismaMock.plan.findUnique.mockResolvedValue({ ...activePlan, isActive: false });
     await expect(billingService.createCheckout('store-1', 'user-1', 'plan-1')).rejects.toThrow('Offre introuvable');
   });
 
+  it('refuse le paiement pour une boutique interne (billingExempt)', async () => {
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', billingExempt: true });
+    await expect(billingService.createCheckout('store-1', 'user-1', 'plan-1')).rejects.toThrow('Boutique interne');
+  });
+
   it('le montant vient de la base de données et le lien créé est renvoyé', async () => {
     prismaMock.plan.findUnique.mockResolvedValue({ ...activePlan, priceAr: '50000' });
-    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', email: null });
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', email: null, billingExempt: false });
     prismaMock.payment.create.mockResolvedValue({ id: 'pay-1', merchantReference: 'SUB-user-1-abc' });
     prismaMock.payment.update.mockResolvedValue({});
 

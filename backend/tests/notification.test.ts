@@ -104,6 +104,7 @@ function sub(overrides: Record<string, any> = {}) {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     plan,
+    store: { billingExempt: false },
     ...overrides,
   };
 }
@@ -211,16 +212,26 @@ describe('Abonnement : compte à rebours en jours', () => {
     expect(state?.isLive).toBe(false);
   });
 
-  it('expireDueSubscriptions passe en EXPIRED et renvoie les boutique concernées', async () => {
+  it('boutique interne (billingExempt) : jamais EXPIRED, jamais de décompte', async () => {
+    prismaMock.subscription.findUnique.mockResolvedValue(
+      sub({ store: { billingExempt: true }, currentPeriodEnd: new Date(Date.now() - 2 * DAY) }),
+    );
+    const state = await subscriptionService.getSubscriptionState('store-1');
+    expect(state?.billingExempt).toBe(true);
+    expect(state?.status).toBe('ACTIVE');
+    expect(state?.isLive).toBe(true);
+    expect(state?.isExpired).toBe(false);
+  });
+
+  it('expireDueSubscriptions ignore les boutiques internes', async () => {
     prismaMock.subscription.findMany.mockResolvedValue([{ id: 'sub-1', storeId: 'store-1' }]);
     prismaMock.subscription.updateMany.mockResolvedValue({ count: 1 });
 
     const storeIds = await subscriptionService.expireDueSubscriptions();
     expect(storeIds).toEqual(['store-1']);
-    expect(prismaMock.subscription.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['sub-1'] } },
-      data: { status: 'EXPIRED' },
-    });
+    expect(prismaMock.subscription.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ store: { billingExempt: false } }) }),
+    );
   });
 
   it('subscriptionsWithDaysLeft cible la fenêtre J-n exacte', async () => {

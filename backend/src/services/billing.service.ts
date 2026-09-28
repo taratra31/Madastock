@@ -19,6 +19,10 @@ function log(action: string, detail = ''): void {
 }
 
 export async function getOverview(storeId: string) {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { billingExempt: true },
+  });
   const subscription = await prisma.subscription.findUnique({
     where: { storeId },
     include: { plan: true },
@@ -35,10 +39,15 @@ export async function getOverview(storeId: string) {
   });
   // Compte à rebours en jours : c'est ce que l'interface affiche (« J-12 »).
   const state = await getSubscriptionState(storeId);
-  return { subscription, subscriptionState: state, plans, orders };
+  return { billingExempt: !!store?.billingExempt, subscription, subscriptionState: state, plans, orders };
 }
 
 export async function createCheckout(storeId: string, userId: string, planId: string) {
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  if (!store) throw notFound('Boutique introuvable');
+  if (store.billingExempt) {
+    throw badRequest('Boutique interne : aucun paiement requis');
+  }
   if (!env.ARIARI_SECRET) {
     throw badRequest('Paiement en ligne non configuré');
   }
@@ -46,9 +55,6 @@ export async function createCheckout(storeId: string, userId: string, planId: st
   const plan = await prisma.plan.findUnique({ where: { id: planId } });
   if (!plan || !plan.isActive) throw badRequest('Offre introuvable');
   if (Number(plan.priceAr) <= 0) throw badRequest('Cette offre est gratuite, aucun paiement nécessaire');
-
-  const store = await prisma.store.findUnique({ where: { id: storeId } });
-  if (!store) throw notFound('Boutique introuvable');
 
   // Le montant vient TOUJOURS de la base de données, jamais du frontend.
   const amount = Math.round(Number(plan.priceAr));

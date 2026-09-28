@@ -129,6 +129,8 @@ model Store {
   currency     String         @default("MGA")
   timezone     String         @default("Indian/Antananarivo")
   active       Boolean        @default(true)
+  /// Boutique interne (admin/démo) : aucun paiement, jamais d'expiration.
+  billingExempt Boolean       @default(false)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
