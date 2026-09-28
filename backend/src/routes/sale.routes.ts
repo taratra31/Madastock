@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireStoreAccess } from '../middleware/store';
+import { requireLiveWrite } from '../middleware/plan';
 import * as saleController from '../controllers/sale.controller';
 
 const router = Router();
 
-router.use(authenticate);
-router.use(requireStoreAccess);
+router.use(authenticate, requireStoreAccess, requireLiveWrite);
 
 router.get('/', saleController.listSales);
 router.post('/', saleController.createSale);

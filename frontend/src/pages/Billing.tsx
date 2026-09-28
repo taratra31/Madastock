@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   Crown,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
+import { useSubscription } from '../lib/subscription';
 import { formatNumber, formatDate } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ErrorMessage, Loading, PageHeader, cn } from '../components/ui';
 
@@ -37,47 +38,6 @@ interface Plan {
   maxCustomers: number;
   maxSalesPerMonth: number | null;
   featuresJson: string;
-}
-
-interface Order {
-  id: string;
-  status: string;
-  amountAr: string | number;
-  provider: string | null;
-  createdAt: string;
-  paidAt: string | null;
-  plan: Plan;
-}
-
-interface SubscriptionState {
-  planName: string;
-  status: string;
-  billingExempt?: boolean;
-  isLive: boolean;
-  isExpired: boolean;
-  isTrial: boolean;
-  currentPeriodEnd: string;
-  daysRemaining: number;
-  daysTotal: number;
-  remainingPercent: number;
-  durationDays: number;
-  trialDaysRemaining: number;
-}
-
-interface BillingData {
-  billingExempt?: boolean;
-  subscription: {
-    id: string;
-    status: string;
-    trialEndsAt: string | null;
-    currentPeriodStart: string;
-    currentPeriodEnd: string;
-    priceAr: string | number;
-    plan: Plan;
-  } | null;
-  subscriptionState: SubscriptionState | null;
-  plans: Plan[];
-  orders: Order[];
 }
 
 const statusConfig: Record<string, { label: string; badge: string; dot: string; icon: typeof Clock }> = {
@@ -133,13 +93,7 @@ export default function Billing() {
   const [searchParams] = useSearchParams();
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const { data, isLoading, error } = useQuery<BillingData>({
-    queryKey: ['billing'],
-    queryFn: async () => {
-      const res = await api.get('/billing');
-      return res.data;
-    },
-  });
+  const { data, isLoading, error } = useSubscription();
 
   const currentPlanId = data?.subscription?.plan.id;
 
@@ -252,7 +206,7 @@ export default function Billing() {
       <PageHeader title="Abonnement" subtitle="Gérez votre offre et vos paiements d'abonnement" />
 
       {isLoading && <Loading />}
-      {!isLoading && error && <ErrorMessage message="Impossible de charger l'abonnement." />}
+      {!isLoading && !!error && <ErrorMessage message="Impossible de charger l'abonnement." />}
       {!isLoading && !error && data && (
         <>
           {isConfirming && (
@@ -273,6 +227,23 @@ export default function Billing() {
                 <p className="text-sm text-slate-600 mt-1 leading-relaxed">
                   Ce compte administrateur est exempté de paiement : votre abonnement reste actif en permanence,
                   sans expiration et sans renouvellement. Aucun paiement requis.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Abonnement expiré : les fonctionnalités sont verrouillées tant que
+              l'utilisateur n'a pas choisi une offre. */}
+          {!exempt && state?.isExpired && (
+            <div className="flex items-start gap-4 rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 to-orange-50 p-5 sm:p-6">
+              <span className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-amber-500 text-white flex items-center justify-center shadow-lg shadow-red-500/20 shrink-0">
+                <XCircle className="w-6 h-6" />
+              </span>
+              <div>
+                <h3 className="font-bold text-dark-900 text-lg">Votre abonnement a expiré</h3>
+                <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                  Vos données sont conservées. Choisissez une offre ci-dessous pour réactiver immédiatement
+                  l'ensemble de vos fonctionnalités et reprendre la gestion de votre activité.
                 </p>
               </div>
             </div>

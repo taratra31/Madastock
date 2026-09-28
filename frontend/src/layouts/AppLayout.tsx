@@ -36,9 +36,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
+import { useSubscription } from '../lib/subscription';
 import api from '../lib/api';
 import { roleLabels, sectorLabels } from '../lib/labels';
 import NotificationBell from '../components/NotificationBell';
+import PremiumModal from '../components/PremiumModal';
+import SubscriptionLock from '../components/SubscriptionLock';
+import { Button } from '../components/ui';
 
 interface NavItem {
   label: string;
@@ -179,11 +183,27 @@ function navForSector(sector?: string): NavSection[] {
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const { memberships, currentStore, setCurrentStore, selectFirstStore } = useStores();
+  const { isLocked, planName } = useSubscription();
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Pages utiles même une fois l'abonnement expiré : choisir une offre,
+  // payer, régler les paramètres ou consulter les notifications.
+  const ALLOWED_WHEN_LOCKED = ['/billing', '/notifications', '/settings', '/stores', '/admin'];
+  const isAllowedWhenLocked =
+    isLocked &&
+    ALLOWED_WHEN_LOCKED.some(
+      (p) => location.pathname === p || location.pathname.startsWith(`${p}/`),
+    );
+
+  // La modale « passez à une offre » s'ouvre automatiquement dès que le compte est verrouillé.
+  useEffect(() => {
+    if (isLocked) setUpgradeModalOpen(true);
+  }, [isLocked]);
 
   const { data: storesData } = useQuery({
     queryKey: ['stores'],
@@ -443,9 +463,27 @@ export default function AppLayout() {
         </header>
 
         <main className="px-4 sm:px-6 py-6 lg:py-8">
-          <Outlet />
+          {isLocked && !isAllowedWhenLocked ? (
+            <SubscriptionLock planName={planName} />
+          ) : (
+            <>
+              {isLocked && (
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-sm text-amber-800 font-medium flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Votre abonnement a expiré. Vos données sont conservées.
+                  </p>
+                  <Button size="sm" onClick={() => navigate('/billing')}>
+                    <CreditCard className="w-3.5 h-3.5" /> S'abonner
+                  </Button>
+                </div>
+              )}
+              <Outlet />
+            </>
+          )}
         </main>
       </div>
+
+      <PremiumModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} planName={planName} />
     </div>
   );
 }

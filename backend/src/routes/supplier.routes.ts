@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireStoreAccess } from '../middleware/store';
+import { requireLiveWrite } from '../middleware/plan';
 import * as controller from '../controllers/supplier.controller';
 
 const router = Router();
 
-router.use(authenticate, requireStoreAccess);
+router.use(authenticate, requireStoreAccess, requireLiveWrite);
 
 router.get('/stats', controller.getSupplierStats);
 router.get('/', controller.listSuppliers);

@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireStoreAccess } from '../middleware/store';
+import { requireLiveWrite } from '../middleware/plan';
 import * as categoryController from '../controllers/category.controller';
 
 const router = Router();
 
-router.use(authenticate, requireStoreAccess);
+router.use(authenticate, requireStoreAccess, requireLiveWrite);
 
 router.get('/', categoryController.listCategories);
 router.post('/', categoryController.createCategory);

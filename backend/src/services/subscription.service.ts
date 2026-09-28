@@ -158,7 +158,19 @@ export async function getSubscriptionState(storeId: string, now = new Date()) {
   const trialRemaining = subscription.trialEndsAt ? daysLeft(subscription.trialEndsAt, now) : 0;
   const total = status === 'TRIALING' && trialRemaining > 0 ? TRIAL_DAYS : planDurationDays(subscription.plan);
 
+  let features: Record<string, boolean> = {};
+  if (subscription.plan.featuresJson) {
+    try {
+      const parsed: unknown = JSON.parse(subscription.plan.featuresJson);
+      if (parsed && typeof parsed === 'object') features = parsed as Record<string, boolean>;
+    } catch {
+      features = {};
+    }
+  }
+
   return {
+    /** Fonctionnalités incluses dans la formule (clés de `featuresJson`). */
+    features,
     id: subscription.id,
     storeId: subscription.storeId,
     planId: subscription.planId,

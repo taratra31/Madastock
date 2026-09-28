@@ -29,6 +29,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   storeMember: { findUnique: vi.fn() },
   store: { findUnique: vi.fn() },
+  subscription: { findUnique: vi.fn() },
   supplier: {
     findMany: vi.fn(),
     findFirst: vi.fn(),

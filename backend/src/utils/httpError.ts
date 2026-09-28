@@ -20,6 +20,8 @@ export const forbidden = (message = 'Accès refusé') => new HttpError(403, mess
 
 export const notFound = (message = 'Introuvable') => new HttpError(404, message);
 
+export const paymentRequired = (message = 'Paiement requis') => new HttpError(402, message);
+
 export const conflict = (message = 'Conflit') => new HttpError(409, message);
 
 export const tooManyRequests = (message = 'Trop de requêtes') => new HttpError(429, message);
