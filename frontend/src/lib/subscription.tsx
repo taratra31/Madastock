@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStores } from './store';
+import { useAuth } from './auth';
 import api from './api';
 
 export interface PlanSummary {
@@ -81,12 +82,15 @@ const SubscriptionContext = createContext<SubscriptionContextValue | null>(null)
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { currentStore } = useStores();
+  const { isAuthenticated } = useAuth();
 
   const { data, isLoading, error } = useQuery<BillingData>({
-    // Même clé que la page Antsika : un seul fetch par boutique.
+    // Même clé que la page Abonnement : un seul fetch par boutique.
     queryKey: ['billing', currentStore?.id],
     queryFn: async () => (await api.get('/billing')).data,
-    enabled: !!currentStore?.id,
+    // Ne pas appeler /billing hors connexion : sinon 401 sur les pages
+    // publiques pour un visiteur ayant un store id résiduel.
+    enabled: isAuthenticated && !!currentStore?.id,
     staleTime: 60_000,
     retry: 1,
   });
