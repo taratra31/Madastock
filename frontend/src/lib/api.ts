@@ -6,10 +6,15 @@ const api = axios.create({
   withCredentials: true,
 });
 
-const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password'];
+// Pages accessibles sans compte : aucun visiteur ne doit y être
+// redirigé de force vers /login quand sa session est morte ou inexistante.
+const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/faq', '/pricing'];
 
-const isPublicPath = () =>
-  PUBLIC_PATHS.some((p) => window.location.pathname === p || window.location.pathname.startsWith(`${p}/`));
+const isPublicPath = () => {
+  const p = window.location.pathname;
+  if (p === '/') return true;
+  return PUBLIC_PATHS.some((path) => p === path || p.startsWith(`${path}/`));
+};
 
 let refreshPromise: Promise<boolean> | null = null;
 let endingSession = false;
