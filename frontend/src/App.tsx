@@ -40,10 +40,12 @@ import AdminPayments from './pages/AdminPayments';
 import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminRoute from './components/AdminRoute';
 import AppLayout from './layouts/AppLayout';
+import GtmPageView from './components/GtmPageView';
 
 function App() {
   return (
     <BrowserRouter>
+      <GtmPageView />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
