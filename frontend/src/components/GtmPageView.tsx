@@ -4,15 +4,16 @@ import { useLocation } from 'react-router-dom';
 declare global {
   interface Window {
     dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
   }
 }
 
 /**
- * Relit la page courante à chaque navigation. En SPA, le déclencheur
- * « page_view » de GTM ne se déclenche que sur le chargement initial ;
- * on pousse donc un événement `pageview` dans dataLayer à chaque
- * changement de route (à brancher dans GTM sur un déclencheur personnalisé
- * ou « History Change »). Ne bloque jamais en cas d'erreur.
+ * Relit la page courante à chaque navigation.
+ * - SPA : le déclencheur « page_view » de GTM/GA4 ne part que sur le
+ *   chargement initial ; on envoie donc un événement `page_view` à gtag et
+ *   un événement `pageview` dans dataLayer à chaque changement de route.
+ * Ne bloque jamais en cas d'erreur.
  */
 export default function GtmPageView() {
   const location = useLocation();
@@ -25,6 +26,12 @@ export default function GtmPageView() {
         page: location.pathname + location.search,
         title: document.title,
       });
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'page_view', {
+          page_path: location.pathname + location.search,
+          page_title: document.title,
+        });
+      }
     } catch {
       // analytique non bloquante
     }
