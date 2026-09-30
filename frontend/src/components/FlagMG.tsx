@@ -21,8 +21,8 @@ export default function FlagMG({ className = 'h-3 w-4' }: { className?: string }
       </defs>
       <g clipPath={`url(#${clipId})`}>
         <rect width="24" height="16" fill="#ffffff" />
-        <rect x="8" width="16" height="8" fill="#00A550" />
-        <rect x="8" y="8" width="16" height="8" fill="#CE1126" />
+        <rect x="8" width="16" height="8" fill="#CE1126" />
+        <rect x="8" y="8" width="16" height="8" fill="#00A550" />
       </g>
       <rect width="24" height="16" rx="2.5" fill="none" stroke="rgba(15,23,42,.18)" />
     </svg>
