@@ -714,6 +714,7 @@ model Notification {
   title     String
   message   String
   dataJson  String?
+  dedupeKey String?
   isRead    Boolean          @default(false)
   readAt    DateTime?
   createdAt DateTime         @default(now())
@@ -723,6 +724,7 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([storeId])
+  @@index([storeId, type, dedupeKey])
   @@map("notifications")
 }
 
