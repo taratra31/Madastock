@@ -35,6 +35,7 @@ export function usePermissions() {
 /** Route → permission requise pour y accéder (sidebar). */
 export const NAV_PERMISSION: Record<string, string> = {
   '/dashboard': 'dashboard.read',
+  '/reports': 'report.read',
   '/sales': 'sale.read',
   '/products': 'product.read',
   '/categories': 'product.read',

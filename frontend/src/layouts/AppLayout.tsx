@@ -8,6 +8,7 @@ import {
   Boxes,
   Warehouse,
   ArrowLeftRight,
+  BarChart3,
   Users,
   FileText,
   Settings,
@@ -58,7 +59,10 @@ type NavSection = { title: string; items: NavItem[] };
 
 const HOME_SECTION: NavSection = {
   title: 'Accueil',
-  items: [{ label: 'Tableau de bord', to: '/dashboard', icon: LayoutDashboard }],
+  items: [
+    { label: 'Tableau de bord', to: '/dashboard', icon: LayoutDashboard },
+    { label: 'Rapports', to: '/reports', icon: BarChart3 },
+  ],
 };
 
 const FINANCE_SECTION: NavSection = {
