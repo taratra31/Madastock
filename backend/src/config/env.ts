@@ -35,6 +35,11 @@ const envSchema = z.object({
   VERIFY_CODE_TTL_MINUTES: z.string().default('15').transform(Number),
   SUPERADMIN_EMAIL: z.string().email('Email superadmin invalide').optional(),
   SUPERADMIN_PASSWORD: z.string().min(6).optional(),
+  // --- Assistant IA (Google Gemini, OPTIONNEL) ---
+  // Sans GEMINI_API_KEY, /ai/chat et /ai/generate répondent 503 ; les
+  // suggestions restent disponibles (elles sont calculées côté serveur).
+  GEMINI_API_KEY: z.string().default(''),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   // --- Canal WhatsApp OTP (OPTIONNEL, neutre par défaut) ---
   // Ce canal est INACTIF tant que WHATSAPP_OTP_ENABLED != '1'. Quand il est
   // actif, le code 6 chiffres part en WhatsApp (expéditeur = notre numéro pairé

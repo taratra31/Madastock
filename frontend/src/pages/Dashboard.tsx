@@ -43,6 +43,7 @@ import api from '../lib/api';
 import { formatAr, formatNumber, formatDateTime } from '../lib/format';
 import { paymentMethodLabels, movementLabels } from '../lib/labels';
 import { Badge, Card, Loading, StatCard } from '../components/ui';
+import SuggestionsCard from '../components/SuggestionsCard';
 
 interface DashboardStats {
   counts: {
@@ -411,6 +412,9 @@ export default function Dashboard() {
         <Loading />
       ) : (
         <>
+          {/* Suggestions intelligentes */}
+          <SuggestionsCard />
+
           {/* Actions rapides */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {quickActions.map((a) => (

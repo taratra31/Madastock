@@ -33,6 +33,7 @@ import {
   Receipt,
   Tag,
   Banknote,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
@@ -42,6 +43,7 @@ import { roleLabels, sectorLabels } from '../lib/labels';
 import NotificationBell from '../components/NotificationBell';
 import PremiumModal from '../components/PremiumModal';
 import SubscriptionLock from '../components/SubscriptionLock';
+import AiAssistant from '../components/AiAssistant';
 import { Button } from '../components/ui';
 
 interface NavItem {
@@ -188,6 +190,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -336,6 +339,19 @@ export default function AppLayout() {
       </nav>
 
       <div className="p-2.5 border-t border-dark-800/80 shrink-0">
+        <button
+          onClick={() => setAssistantOpen(true)}
+          className="w-full mb-2 flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/5 text-emerald-300 ring-1 ring-emerald-500/25 hover:from-emerald-500/25 hover:text-emerald-200 transition-all"
+        >
+          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+            <Sparkles className="w-4 h-4" />
+          </span>
+          <span className="min-w-0 flex-1 text-left">
+            <span className="block text-[13px] font-semibold truncate">Assistant IA</span>
+            <span className="block text-[10px] text-emerald-400/70 truncate">Demandez, on vous guide</span>
+          </span>
+        </button>
+
         <div className="bg-dark-800/60 rounded-xl p-2.5 flex items-center gap-2.5">
           <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-md shadow-emerald-500/20">
             {(user?.fullName ?? 'U').slice(0, 1).toUpperCase()}
@@ -484,6 +500,8 @@ export default function AppLayout() {
       </div>
 
       <PremiumModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} planName={planName} />
+
+      <AiAssistant open={assistantOpen} onOpen={() => setAssistantOpen(true)} onClose={() => setAssistantOpen(false)} />
     </div>
   );
 }

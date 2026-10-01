@@ -33,6 +33,7 @@ import purchaseRoutes from './routes/purchase.routes';
 import expenseRoutes from './routes/expense.routes';
 import cashRoutes from './routes/cash.routes';
 import notificationRoutes from './routes/notification.routes';
+import aiRoutes from './routes/ai.routes';
 import * as billingController from './controllers/billing.controller';
 
 const app = express();
@@ -140,6 +141,7 @@ app.use('/api/v1/purchases', purchaseRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/cash', cashRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Serve built frontend (production) — same origin, single port
 const distDir = path.join(__dirname, '../../frontend/dist');
