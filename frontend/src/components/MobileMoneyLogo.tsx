@@ -7,7 +7,12 @@ const LOGO: Record<
   MobileMoneyOperator,
   { src?: string; tint: string; swatch: string; label: string }
 > = {
-  MVOLA: { tint: 'bg-orange-50 ring-orange-200', swatch: 'bg-[#F97316]', label: 'MVola' },
+  MVOLA: {
+    src: '/logos/mvola.png',
+    tint: 'bg-orange-50 ring-orange-200',
+    swatch: 'bg-[#F97316]',
+    label: 'MVola',
+  },
   ORANGE_MONEY: {
     src: '/logos/orange-money.png',
     tint: 'bg-orange-50 ring-orange-200',
