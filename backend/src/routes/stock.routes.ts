@@ -11,6 +11,7 @@ const router = Router();
 router.use(authenticate, requireStoreAccess, requireLiveWrite);
 
 router.get('/', requirePermission(PERMISSIONS.STOCK_READ), stockController.listStock);
+router.get('/movements', requirePermission(PERMISSIONS.STOCK_READ), stockController.listMovements);
 router.post('/adjust', requirePermission(PERMISSIONS.STOCK_WRITE), stockController.adjustStock);
 router.get('/warehouses', requirePermission(PERMISSIONS.STOCK_READ), stockController.listWarehouses);
 

@@ -28,3 +28,19 @@ export const listWarehouses = asyncHandler(async (req: Request, res: Response) =
   const warehouses = await stockService.listWarehouses(req.store.id);
   res.json(warehouses);
 });
+
+export const listMovements = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.store) throw badRequest('Contexte boutique manquant');
+  const result = await stockService.listMovements(req.store.id, {
+    productId: req.query.productId as string | undefined,
+    warehouseId: req.query.warehouseId as string | undefined,
+    movementType: req.query.type as string | undefined,
+    referenceType: req.query.referenceType as string | undefined,
+    from: req.query.from as string | undefined,
+    to: req.query.to as string | undefined,
+    search: req.query.search as string | undefined,
+    page: req.query.page as string | undefined,
+    pageSize: req.query.pageSize as string | undefined,
+  });
+  res.json(result);
+});

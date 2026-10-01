@@ -1,6 +1,83 @@
 import prisma from '../lib/prisma';
 import { badRequest, notFound } from '../utils/httpError';
 
+/** Journal des mouvements de stock : filtres + pagination. */
+export async function listMovements(storeId: string, query: {
+  productId?: string;
+  warehouseId?: string;
+  movementType?: string;
+  referenceType?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+  page?: string;
+  pageSize?: string;
+}) {
+  const page = Math.max(1, Number(query.page ?? '1') || 1);
+  const pageSize = Math.min(200, Math.max(5, Number(query.pageSize ?? '25') || 25));
+
+  const where: Record<string, unknown> = { storeId };
+
+  if (query.productId) where.productId = query.productId;
+  if (query.warehouseId) where.warehouseId = query.warehouseId;
+  if (query.movementType) where.movementType = query.movementType;
+  if (query.referenceType) where.referenceType = query.referenceType;
+  if (query.search) {
+    where.product = { name: { contains: query.search } };
+  }
+  if (query.from || query.to) {
+    const createdAt: Record<string, Date> = {};
+    if (query.from) createdAt.gte = new Date(query.from);
+    if (query.to) {
+      const end = new Date(query.to);
+      end.setHours(23, 59, 59, 999);
+      createdAt.lte = end;
+    }
+    where.createdAt = createdAt;
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where,
+      include: {
+        warehouse: { select: { id: true, name: true } },
+        product: { select: { id: true, name: true, sku: true, unit: true } },
+        variant: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.stockMovement.count({ where }),
+  ]);
+
+  return {
+    items: rows.map((m) => ({
+      id: m.id,
+      productId: m.productId,
+      productName: m.product?.name ?? '—',
+      productSku: m.product?.sku ?? null,
+      unit: m.product?.unit ?? 'pcs',
+      variantName: m.variant?.name ?? null,
+      warehouseId: m.warehouseId,
+      warehouseName: m.warehouse?.name ?? '—',
+      movementType: m.movementType,
+      quantity: Number(m.quantity),
+      unitCostAr: m.unitCostAr === null ? null : Number(m.unitCostAr),
+      reason: m.reason,
+      referenceType: m.referenceType,
+      referenceId: m.referenceId,
+      createdByName: m.createdBy?.fullName || 'Système',
+      createdAt: m.createdAt,
+    })),
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
 export async function listStock(storeId: string, query: {
   search?: string;
   lowStock?: boolean;

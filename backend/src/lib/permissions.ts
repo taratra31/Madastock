@@ -67,7 +67,7 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 const P = PERMISSIONS;
 
-/** Toutes les permissions d'exploitation (tout sauf abonnement / équipe / facturation destructive). */
+/** Toutes les permissions d'exploitation (hors réglages boutique, équipe et facturation). */
 const OPERATIONAL: Permission[] = [
   P.DASHBOARD_READ,
   P.REPORT_READ,
@@ -99,7 +99,6 @@ const OPERATIONAL: Permission[] = [
   P.CASH_WRITE,
   P.CRM_READ,
   P.CRM_WRITE,
-  P.SETTINGS_WRITE,
   P.NOTIFICATION_READ,
   P.AI_USE,
   P.DATA_EXPORT,
@@ -115,7 +114,7 @@ const OPERATIONAL: Permission[] = [
  * - CASHIER    : encaissement + clients, AUCUN coût d'achat, AUCUNE écriture de stock.
  */
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ADMIN: [...OPERATIONAL, P.INVOICE_DELETE, P.MEMBER_MANAGE, P.BILLING_READ],
+  ADMIN: [...OPERATIONAL, P.SETTINGS_WRITE, P.INVOICE_DELETE, P.MEMBER_MANAGE, P.BILLING_READ],
   MANAGER: OPERATIONAL,
   STOCK_MANAGER: [
     P.DASHBOARD_READ,

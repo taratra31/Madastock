@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { env } from '../config/env';
 import { notifyOwners } from './notification.service';
+import { mailerConfigured, sendLowStockEmail } from './mailer.service';
 import { expireDueSubscriptions, subscriptionsWithDaysLeft } from './subscription.service';
 
 const HOUR = 60 * 60 * 1000;
@@ -56,7 +57,10 @@ async function runLowStockAlerts() {
   const since = startOfToday();
   const lows = await prisma.stock.findMany({
     where: { warehouse: { store: { active: true } }, product: { is: { isActive: true } } },
-    include: { product: { select: { id: true, name: true, trackStock: true, lowStockThreshold: true } } },
+    include: {
+      product: { select: { id: true, name: true, trackStock: true, lowStockThreshold: true } },
+      warehouse: { select: { name: true } },
+    },
     take: 1000,
   });
 
@@ -89,6 +93,79 @@ async function runLowStockAlerts() {
     });
   }
   if (alerts.length > 0) console.log(`[CRON] ${alerts.length} alerte(s) de stock bas`);
+
+  await sendLowStockEmails(alerts, since);
+}
+
+/**
+ * Un seul e-mail de synthèse par boutique et par jour : un commerçant qui a
+ * 15 produits en stock bas ne doit pas recevoir 15 messages.
+ */
+async function sendLowStockEmails(
+  alerts: Array<{
+    storeId: string;
+    quantityAr: unknown;
+    product: { name: string; lowStockThreshold: number | null } | null;
+    warehouse: { name: string } | null;
+  }>,
+  since: Date,
+): Promise<void> {
+  if (alerts.length === 0 || !mailerConfigured()) return;
+
+  const periodKey = since.toISOString().slice(0, 10);
+  const byStore = new Map<string, typeof alerts>();
+  for (const a of alerts) {
+    const list = byStore.get(a.storeId) ?? [];
+    list.push(a);
+    byStore.set(a.storeId, list);
+  }
+
+  for (const [storeId, list] of byStore) {
+    const [store, members] = await Promise.all([
+      prisma.store.findUnique({ where: { id: storeId }, select: { name: true } }),
+      prisma.storeMember.findMany({
+        where: { storeId, isOwner: true, user: { isActive: true } },
+        select: { user: { select: { email: true } } },
+      }),
+    ]);
+    if (!store) continue;
+
+    for (const member of members) {
+      const email = member.user.email;
+      if (!email) continue;
+
+      // Un envoi par destinataire et par jour : si l'insertion passe, on
+      // envoie. La contrainte unique protège si deux CRF se croisent.
+      try {
+        await prisma.emailDispatch.create({
+          data: { storeId, email, kind: 'LOW_STOCK', periodKey },
+        });
+      } catch {
+        continue; // déjà envoyé aujourd'hui
+      }
+
+      try {
+        await sendLowStockEmail(
+          email,
+          store.name,
+          list.map((l) => ({
+            productName: l.product?.name ?? '—',
+            quantity: Number(l.quantityAr),
+            threshold: l.product?.lowStockThreshold ?? 5,
+            warehouseName: l.warehouse?.name ?? null,
+          })),
+        );
+        console.log(`[CRON] e-mail stock bas envoyé à ${email} (${list.length} produit(s))`);
+      } catch (error) {
+        // Un e-mail en échec ne doit pas interrompre les tâches du jour.
+        console.error('[CRON] e-mail stock bas impossible :', (error as Error).message);
+        // On libère la place pour une tentative au prochain passage.
+        await prisma.emailDispatch
+          .delete({ where: { storeId_email_kind_periodKey: { storeId, email, kind: 'LOW_STOCK', periodKey } } })
+          .catch(() => undefined);
+      }
+    }
+  }
 }
 
 /** Rappels CRM du jour. */

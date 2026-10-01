@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, AlertTriangle } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Boxes,
+  AlertTriangle,
+  History,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
-import { formatAr, formatNumber, formatDate } from '../lib/format';
+import { formatAr, formatNumber, formatDate, formatDateTime } from '../lib/format';
+import { usePermissions } from '../lib/permissions';
 import { Badge, Button, Card, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Select, ErrorMessage } from '../components/ui';
 
 interface Warehouse {
@@ -46,9 +55,175 @@ interface ProductOption {
   sku: string | null;
 }
 
+interface Movement {
+  id: string;
+  productId: string | null;
+  productName: string;
+  productSku: string | null;
+  unit: string;
+  variantName: string | null;
+  warehouseId: string;
+  warehouseName: string;
+  movementType: string;
+  quantity: number;
+  unitCostAr: number | null;
+  reason: string | null;
+  referenceType: string | null;
+  createdByName: string;
+  createdAt: string;
+}
+
+const MOVEMENT_LABELS: Record<string, string> = {
+  SALE: 'Vente',
+  PURCHASE: 'Réception achat',
+  STOCK_IN: 'Entrée',
+  STOCK_OUT: 'Sortie',
+  TRANSFER_OUT: 'Transfert envoyé',
+  TRANSFER_IN: 'Transfert reçu',
+  ADJUSTMENT: 'Ajustement',
+  LOSS: 'Perte / casse',
+};
+
+const OUT_MOVEMENTS = ['SALE', 'STOCK_OUT', 'TRANSFER_OUT', 'LOSS'];
+
+function MovementHistory({ warehouses }: { warehouses: Warehouse[] }) {
+  const [search, setSearch] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [type, setType] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [page, setPage] = useState(1);
+  const { can } = usePermissions();
+  const showCost = can('product.write') || can('purchase.read');
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['stock-movements', search, warehouseId, type, from, to, page],
+    queryFn: async () => {
+      const res = await api.get('/stock/movements', {
+        params: {
+          search: search || undefined,
+          warehouseId: warehouseId || undefined,
+          type: type || undefined,
+          from: from || undefined,
+          to: to || undefined,
+          page,
+          pageSize: 25,
+        },
+      });
+      return res.data as { items: Movement[]; total: number; page: number; pageCount: number };
+    },
+  });
+
+  return (
+    <>
+      <Card className="mb-4 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="lg:col-span-2">
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Rechercher un produit..." />
+        </div>
+        <Select value={warehouseId} onChange={(e) => { setWarehouseId(e.target.value); setPage(1); }}>
+          <option value="">Tous les entrepôts</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>{w.name}{w.isMain ? ' (principal)' : ''}</option>
+          ))}
+        </Select>
+        <Select value={type} onChange={(e) => { setType(e.target.value); setPage(1); }}>
+          <option value="">Tous les types</option>
+          {Object.entries(MOVEMENT_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </Select>
+        <div className="flex items-center gap-2">
+          <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} aria-label="Du" />
+          <span className="text-slate-400">→</span>
+          <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} aria-label="Au" />
+        </div>
+      </Card>
+
+      {error ? (
+        <ErrorMessage message={(error as any).response?.data?.error ?? 'Erreur de chargement'} />
+      ) : isLoading ? (
+        <Loading />
+      ) : !data || data.items.length === 0 ? (
+        <Card>
+          <EmptyState title="Aucun mouvement" description="Les entrées, sorties, ventes et transferts apparaîtront ici." />
+        </Card>
+      ) : (
+        <>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100 bg-slate-50/60">
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Produit</th>
+                    <th className="px-4 py-3 font-medium">Entrepôt</th>
+                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium text-right">Quantité</th>
+                    {showCost && <th className="px-4 py-3 font-medium text-right">Coût unitaire</th>}
+                    <th className="px-4 py-3 font-medium">Auteur</th>
+                    <th className="px-4 py-3 font-medium">Motif</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((m) => {
+                    const isOut = OUT_MOVEMENTS.includes(m.movementType);
+                    return (
+                      <tr key={m.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(m.createdAt)}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-dark-900">{m.productName}</p>
+                          <p className="text-xs text-slate-400">
+                            {m.variantName ? `${m.variantName} · ` : ''}{m.productSku ?? '—'}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{m.warehouseName}</td>
+                        <td className="px-4 py-3">
+                          <Badge className={isOut ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}>
+                            {MOVEMENT_LABELS[m.movementType] ?? m.movementType}
+                          </Badge>
+                        </td>
+                        <td className={`px-4 py-3 text-right font-semibold ${isOut ? 'text-red-600' : 'text-green-600'}`}>
+                          {isOut ? '−' : '+'}{formatNumber(m.quantity)} <span className="text-xs font-normal text-slate-400">{m.unit}</span>
+                        </td>
+                        {showCost && (
+                          <td className="px-4 py-3 text-right text-slate-600">
+                            {m.unitCostAr === null ? '—' : formatAr(m.unitCostAr)}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-slate-600">{m.createdByName}</td>
+                        <td className="px-4 py-3 text-slate-500">{m.reason ?? '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-sm text-slate-500">{formatNumber(data.total)} mouvement(s)</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="w-4 h-4" /> Précédent
+              </Button>
+              <span className="text-sm text-slate-600">{data.page} / {data.pageCount}</span>
+              <Button variant="outline" size="sm" disabled={page >= data.pageCount} onClick={() => setPage((p) => p + 1)}>
+                Suivant <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function Stock() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { can } = usePermissions();
+  const canWrite = can('stock.write');
+  const [tab, setTab] = useState<'etat' | 'historique'>('etat');
   const [search, setSearch] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
@@ -145,19 +320,46 @@ export default function Stock() {
         title="Stock"
         subtitle="Suivez vos quantités en temps réel dans tous vos entrepôts"
         actions={
-          <>
-            <Button variant="outline" onClick={() => openAdjust('OUT')}>
-              <ArrowUpFromLine className="w-4 h-4" />
-              Sortie
-            </Button>
-            <Button onClick={() => openAdjust('IN')}>
-              <ArrowDownToLine className="w-4 h-4" />
-              Entrée / Ajustement
-            </Button>
-          </>
+          canWrite ? (
+            <>
+              <Button variant="outline" onClick={() => openAdjust('OUT')}>
+                <ArrowUpFromLine className="w-4 h-4" />
+                Sortie
+              </Button>
+              <Button onClick={() => openAdjust('IN')}>
+                <ArrowDownToLine className="w-4 h-4" />
+                Entrée / Ajustement
+              </Button>
+            </>
+          ) : undefined
         }
       />
 
+      <div className="flex items-center gap-1 mb-4 border-b border-slate-200">
+        <button
+          onClick={() => setTab('etat')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            tab === 'etat' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Boxes className="w-4 h-4" />
+          État du stock
+        </button>
+        <button
+          onClick={() => setTab('historique')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            tab === 'historique' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Historique des mouvements
+        </button>
+      </div>
+
+      {tab === 'historique' ? (
+        <MovementHistory warehouses={warehouses ?? []} />
+      ) : (
+      <>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
         <Card className="p-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Unités en stock</p>
@@ -299,10 +501,12 @@ export default function Stock() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="outline" size="sm" onClick={() => openAdjust('IN', r.productId ?? undefined)}>+</Button>
-                        <Button variant="outline" size="sm" onClick={() => openAdjust('OUT', r.productId ?? undefined)}>−</Button>
-                      </div>
+                      {canWrite && (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="outline" size="sm" onClick={() => openAdjust('IN', r.productId ?? undefined)}>+</Button>
+                          <Button variant="outline" size="sm" onClick={() => openAdjust('OUT', r.productId ?? undefined)}>−</Button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -359,6 +563,8 @@ export default function Stock() {
           </div>
         </form>
       </Modal>
+      </>
+      )}
     </div>
   );
 }
