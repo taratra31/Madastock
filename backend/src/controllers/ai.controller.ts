@@ -8,6 +8,11 @@ import { getDashboardStats } from '../services/dashboard.service';
 
 const GENERATE_KINDS = ['productDescription', 'customerMessage', 'reminder'];
 
+/** Public : permet de vérifier sans login si la clé Gemini est bien configurée. */
+export const status = asyncHandler(async (_req: Request, res: Response) => {
+  res.json({ configured: aiService.isAiConfigured() });
+});
+
 export const chat = asyncHandler(async (req: Request, res: Response) => {
   if (!req.store) throw badRequest('Contexte boutique manquant');
   const messages: unknown = req.body?.messages;

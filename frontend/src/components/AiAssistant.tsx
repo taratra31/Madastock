@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Send, X, Loader2 } from 'lucide-react';
+import { Headset, Send, X, Loader2 } from 'lucide-react';
 import api from '../lib/api';
 
 interface UiMessage {
@@ -70,7 +70,7 @@ export default function AiAssistant({
           aria-label="Assistant MadaStock"
           className="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-xl shadow-emerald-500/30 flex items-center justify-center hover:scale-105 transition-transform"
         >
-          <MessageCircle className="w-6 h-6" />
+          <Headset className="w-6 h-6" />
         </button>
       )}
 
@@ -79,7 +79,7 @@ export default function AiAssistant({
         <div className="fixed inset-0 z-50 lg:inset-auto lg:bottom-5 lg:right-5 lg:w-96 lg:h-[540px] lg:max-h-[calc(100vh-6rem)] lg:rounded-2xl flex flex-col overflow-hidden bg-white shadow-2xl ring-1 ring-slate-200">
           <div className="shrink-0 flex items-center gap-2.5 px-4 h-14 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
             <span className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
-              <MessageCircle className="w-5 h-5" />
+              <Headset className="w-5 h-5" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight">Assistant MadaStock</p>

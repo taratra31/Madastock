@@ -5,6 +5,8 @@ import * as controller from '../controllers/ai.controller';
 
 const router = Router();
 
+router.get('/status', controller.status);
+
 router.use(authenticate, requireStoreAccess);
 
 router.post('/chat', controller.chat);
