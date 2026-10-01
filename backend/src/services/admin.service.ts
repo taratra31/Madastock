@@ -126,6 +126,7 @@ export async function listStores(params: ListQueryInput) {
         country: true,
         currency: true,
         active: true,
+        billingExempt: true,
         createdAt: true,
         _count: { select: { members: true, products: true, sales: true } },
         subscription: {
@@ -154,14 +155,17 @@ export async function listStores(params: ListQueryInput) {
   };
 }
 
-export async function updateStore(storeId: string, data: { active: boolean }) {
+export async function updateStore(storeId: string, data: { active?: boolean; billingExempt?: boolean }) {
   const store = await prisma.store.findUnique({ where: { id: storeId } });
   if (!store || store.deletedAt) throw notFound('Boutique introuvable');
 
   return prisma.store.update({
     where: { id: storeId },
-    data: { active: data.active },
-    select: { id: true, name: true, active: true },
+    data: {
+      ...(data.active !== undefined ? { active: data.active } : {}),
+      ...(data.billingExempt !== undefined ? { billingExempt: data.billingExempt } : {}),
+    },
+    select: { id: true, name: true, active: true, billingExempt: true },
   });
 }
 
@@ -283,6 +287,18 @@ export async function updateSubscription(id: string, input: UpdateSubscriptionIn
   const data: Prisma.SubscriptionUpdateInput = {};
 
   if (input.autoRenew !== undefined) data.autoRenew = input.autoRenew;
+
+  if (input.extendDays !== undefined) {
+    const currentEnd = new Date(subscription.currentPeriodEnd);
+    const wasExpired = currentEnd.getTime() <= Date.now();
+    const base = wasExpired ? new Date() : currentEnd;
+    data.currentPeriodStart = wasExpired ? base : subscription.currentPeriodStart;
+    data.currentPeriodEnd = new Date(base.getTime() + input.extendDays * 86400000);
+    if (wasExpired && (subscription.status === 'EXPIRED' || subscription.status === 'CANCELLED')) {
+      data.status = 'TRIALING';
+    }
+    if (subscription.status === 'TRIALING') data.trialEndsAt = data.currentPeriodEnd;
+  }
 
   if (input.status) {
     data.status = input.status;

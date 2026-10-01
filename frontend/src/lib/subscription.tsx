@@ -68,6 +68,8 @@ type SubscriptionContextValue = {
   isLoading: boolean;
   error: unknown;
   billingExempt: boolean;
+  /** Super administrateur MadaStock : jamais soumis à l'abonnement. */
+  platformAdmin: boolean;
   /** Boutique expirée (ou annulée) et non exemptée : fonctionnalités verrouillées. */
   isLocked: boolean;
   isExpired: boolean;
@@ -82,7 +84,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue | null>(null)
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { currentStore } = useStores();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const { data, isLoading, error } = useQuery<BillingData>({
     // Même clé que la page Abonnement : un seul fetch par boutique.
@@ -97,24 +99,26 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const state = data?.subscriptionState ?? null;
   const billingExempt = data?.billingExempt ?? state?.billingExempt ?? false;
-  const isExpired = !!state?.isExpired;
+  const platformAdmin = !!user?.isSuperAdmin;
+  const isExpired = !!state?.isExpired && !billingExempt && !platformAdmin;
   // Pas d'abonnement (state null) : on ne verrouille jamais, pour ne pas
   // piéger une boutique en sortie d'erreur de configuration.
-  const isLocked = !billingExempt && !!state && !state.isLive;
+  const isLocked = !billingExempt && !platformAdmin && !!state && !state.isLive;
 
   const value = useMemo<SubscriptionContextValue>(
     () => ({
       isLoading,
       error,
       billingExempt,
+      platformAdmin,
       isLocked,
       isExpired,
       state,
       data,
       planName: state?.planName ?? null,
-      can: (feature: string) => billingExempt || !!state?.features?.[feature],
+      can: (feature: string) => billingExempt || platformAdmin || !!state?.features?.[feature],
     }),
-    [isLoading, error, billingExempt, isLocked, isExpired, state, data],
+    [isLoading, error, billingExempt, platformAdmin, isLocked, isExpired, state, data],
   );
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;

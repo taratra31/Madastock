@@ -30,7 +30,7 @@ export default function AdminSubscriptions() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<SubscriptionRow | null>(null);
-  const [form, setForm] = useState({ status: '', planId: '', autoRenew: true });
+  const [form, setForm] = useState({ status: '', planId: '', autoRenew: true, extendDays: 0 });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin', 'subscriptions', status, page],
@@ -51,7 +51,13 @@ export default function AdminSubscriptions() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (payload: { id: string; status?: string; planId?: string; autoRenew?: boolean }) => {
+    mutationFn: async (payload: {
+      id: string;
+      status?: string;
+      planId?: string;
+      autoRenew?: boolean;
+      extendDays?: number;
+    }) => {
       const res = await api.patch(`/admin/subscriptions/${payload.id}`, payload);
       return res.data;
     },
@@ -66,15 +72,22 @@ export default function AdminSubscriptions() {
 
   const openEdit = (s: SubscriptionRow) => {
     setEditing(s);
-    setForm({ status: s.status, planId: s.plan.id, autoRenew: s.autoRenew });
+    setForm({ status: s.status, planId: s.plan.id, autoRenew: s.autoRenew, extendDays: 0 });
   };
 
   const save = () => {
     if (!editing) return;
-    const payload: { id: string; status?: string; planId?: string; autoRenew?: boolean } = { id: editing.id };
+    const payload: {
+      id: string;
+      status?: string;
+      planId?: string;
+      autoRenew?: boolean;
+      extendDays?: number;
+    } = { id: editing.id };
     if (form.status !== editing.status) payload.status = form.status;
     if (form.planId !== editing.plan.id) payload.planId = form.planId;
     if (form.autoRenew !== editing.autoRenew) payload.autoRenew = form.autoRenew;
+    if (form.extendDays > 0) payload.extendDays = form.extendDays;
     if (Object.keys(payload).length === 1) {
       setEditing(null);
       return;
@@ -199,6 +212,20 @@ export default function AdminSubscriptions() {
             />
             Renouvellement automatique
           </label>
+          <Field
+            label="Prolonger la période"
+            hint="Ajoute ces jours à la fin de période. Si elle est déjà terminée, une nouvelle période démarre aujourd'hui et le statut repasse en Essai."
+          >
+            <Select
+              value={String(form.extendDays)}
+              onChange={(e) => setForm((f) => ({ ...f, extendDays: Number(e.target.value) }))}
+            >
+              <option value="0">Ne pas modifier</option>
+              {[7, 14, 30, 60, 90, 180, 365].map((d) => (
+                <option key={d} value={d}>+{d} jours</option>
+              ))}
+            </Select>
+          </Field>
         </div>
       </Modal>
     </div>

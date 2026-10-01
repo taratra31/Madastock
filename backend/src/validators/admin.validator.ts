@@ -14,9 +14,15 @@ export const listQuerySchema = z.object({
   to: z.coerce.date().optional(),
 });
 
-export const updateStoreStatusSchema = z.object({
-  active: z.boolean(),
-});
+export const updateStoreStatusSchema = z
+  .object({
+    active: z.boolean().optional(),
+    /** Exonère la boutique de tout contrôle d'abonnement (usage interne / démo). */
+    billingExempt: z.boolean().optional(),
+  })
+  .refine((v) => v.active !== undefined || v.billingExempt !== undefined, {
+    message: 'Aucune modification fournie',
+  });
 
 export const updateUserStatusSchema = z.object({
   isActive: z.boolean(),
@@ -27,9 +33,15 @@ export const updateSubscriptionSchema = z
     status: z.enum(SUBSCRIPTION_STATUSES).optional(),
     planId: z.string().trim().min(1).max(64).optional(),
     autoRenew: z.boolean().optional(),
+    /** Ajoute N jours à la période en cours (ou relance une période expirée). */
+    extendDays: z.number().int().min(1).max(365).optional(),
   })
   .refine(
-    (v) => v.status !== undefined || v.planId !== undefined || v.autoRenew !== undefined,
+    (v) =>
+      v.status !== undefined ||
+      v.planId !== undefined ||
+      v.autoRenew !== undefined ||
+      v.extendDays !== undefined,
     { message: 'Aucune modification fournie' }
   );
 

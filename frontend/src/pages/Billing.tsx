@@ -93,7 +93,7 @@ export default function Billing() {
   const [searchParams] = useSearchParams();
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const { data, isLoading, error } = useSubscription();
+  const { data, isLoading, error, platformAdmin } = useSubscription();
 
   const currentPlanId = data?.subscription?.plan.id;
 
@@ -183,7 +183,7 @@ export default function Billing() {
 
   const sub = data?.subscription;
   const state = data?.subscriptionState ?? null;
-  const exempt = data?.billingExempt || state?.billingExempt;
+  const exempt = platformAdmin || data?.billingExempt || state?.billingExempt;
   const cycleStart = sub ? new Date(sub.currentPeriodStart).getTime() : 0;
   const cycleEnd = sub ? new Date(sub.currentPeriodEnd).getTime() : 0;
   // Le décompte vient du serveur (une seule vérité) : « J-12 ».
@@ -225,8 +225,8 @@ export default function Billing() {
               <div>
                 <h3 className="font-bold text-dark-900 text-lg">Boutique interne MadaStock</h3>
                 <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                  Ce compte administrateur est exempté de paiement : votre abonnement reste actif en permanence,
-                  sans expiration et sans renouvellement. Aucun paiement requis.
+                  Ce compte administrateur plateforme est exempté de paiement : votre abonnement reste actif en
+                  permanence, sans expiration et sans renouvellement. Aucun paiement requis.
                 </p>
               </div>
             </div>

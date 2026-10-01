@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Store as StoreIcon, Power } from 'lucide-react';
+import { Power, ShieldCheck, ShieldOff, Store as StoreIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { formatDate, formatNumber } from '../lib/format';
@@ -16,6 +16,7 @@ interface StoreRow {
   country: string;
   currency: string;
   active: boolean;
+  billingExempt: boolean;
   createdAt: string;
   _count: { members: number; products: number; sales: number };
   subscription: { status: string; priceAr: number; currentPeriodEnd: string; plan: { name: string } } | null;
@@ -28,6 +29,7 @@ export default function AdminStores() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [toggleTarget, setToggleTarget] = useState<StoreRow | null>(null);
+  const [exemptTarget, setExemptTarget] = useState<StoreRow | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin', 'stores', search, status, page],
@@ -49,6 +51,24 @@ export default function AdminStores() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
       setToggleTarget(null);
+    },
+    onError: (err: unknown) => toast.error(apiError(err)),
+  });
+
+  const exemptMutation = useMutation({
+    mutationFn: async (row: StoreRow) => {
+      const res = await api.patch(`/admin/stores/${row.id}`, { billingExempt: !row.billingExempt });
+      return res.data;
+    },
+    onSuccess: (_data, row) => {
+      toast.success(
+        row.billingExempt
+          ? `« ${row.name} » redevient soumise à l'abonnement`
+          : `« ${row.name} » est désormais exonérée d'abonnement`,
+      );
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'overview'] });
+      setExemptTarget(null);
     },
     onError: (err: unknown) => toast.error(apiError(err)),
   });
@@ -122,20 +142,36 @@ export default function AdminStores() {
                     </td>
                     <td className="px-4 py-3">
                       {s.subscription ? (
-                        <Badge className={`${(subscriptionStatusBadge[s.subscription.status] ?? 'bg-slate-100 text-slate-600')}`}>
-                          {s.subscription.plan.name} · {subscriptionStatusLabels[s.subscription.status] ?? s.subscription.status}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge className={`${(subscriptionStatusBadge[s.subscription.status] ?? 'bg-slate-100 text-slate-600')}`}>
+                            {s.subscription.plan.name} · {subscriptionStatusLabels[s.subscription.status] ?? s.subscription.status}
+                          </Badge>
+                          <span className="text-xs text-slate-400">jusqu'au {formatDate(s.subscription.currentPeriodEnd)}</span>
+                        </div>
                       ) : (
                         <span className="text-slate-400 text-xs">Aucun abonnement</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{formatDate(s.createdAt)}</td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatDate(s.createdAt)}</td>
                     <td className="px-4 py-3">
                       <Badge className={s.active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}>
                         {s.active ? 'Active' : 'Inactive'}
                       </Badge>
+                      {s.billingExempt && (
+                        <Badge className="ml-1 bg-amber-50 text-amber-700">Exonérée</Badge>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExemptTarget(s)}
+                        disabled={exemptMutation.isPending}
+                        title={s.billingExempt ? 'Soumettre à l\'abonnement' : 'Exonerer de l\'abonnement'}
+                      >
+                        {s.billingExempt ? <ShieldOff className="w-3.5 h-3.5" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                        {s.billingExempt ? 'Exonérer : non' : 'Exonérer'}
+                      </Button>{' '}
                       <Button
                         variant={s.active ? 'danger' : 'primary'}
                         size="sm"
@@ -176,6 +212,20 @@ export default function AdminStores() {
         confirmLabel={toggleTarget?.active ? 'Désactiver' : 'Activer'}
         loading={toggleMutation.isPending}
         onConfirm={() => toggleTarget && toggleMutation.mutate(toggleTarget)}
+      />
+
+      <ConfirmDialog
+        open={!!exemptTarget}
+        onClose={() => setExemptTarget(null)}
+        title={exemptTarget?.billingExempt ? 'Lever l’exonération' : 'Exonerer la boutique'}
+        message={
+          exemptTarget?.billingExempt
+            ? `La boutique « ${exemptTarget?.name} » repasse sous contrôle d'abonnement : ses membres ne pourront plus écrire si la période est terminée.`
+            : `La boutique « ${exemptTarget?.name} » ne sera plus bloquée, même si son abonnement est expiré. À utiliser pour votre propre boutique, une démo ou un partner.`
+        }
+        confirmLabel={exemptTarget?.billingExempt ? 'Lever l’exonération' : 'Exonerer'}
+        loading={exemptMutation.isPending}
+        onConfirm={() => exemptTarget && exemptMutation.mutate(exemptTarget)}
       />
     </div>
   );

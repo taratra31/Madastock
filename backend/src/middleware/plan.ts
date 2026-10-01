@@ -56,13 +56,26 @@ export async function loadPlan(storeId: string): Promise<PlanContext> {
 }
 
 /**
+ * Le super administrateur de la plateforme n'est jamais soumis à l'abonnement :
+ * il doit pouvoir piloter toutes les boutiques (y compris expirées) pour
+ * dépanner, prolonger un essai ou exonérer une boutique depuis le back-office.
+ */
+async function isPlatformAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isSuperAdmin: true, isActive: true, deletedAt: true },
+  });
+  return Boolean(user?.isSuperAdmin && user.isActive && !user.deletedAt);
+}
+
+/**
  * Abonnement expiré (ou annulé) : le compte passe en « lecture seule ».
  * - Les lectures (GET/HEAD) restent autorisées : l'utilisateur garde l'accès
  *   à ses données et comprend pourquoi il doit renouveler.
  * - Toute écriture (création, modification, suppression) est refusée en 402
  *   et le frontend ouvre la modale d'abonnement.
- * Une boutique interne (admin/démo) et une boutique encore en période valide
- * (essai gratuit compris) ne sont jamais bloquées.
+ * Exceptions : une boutique interne (admin/démo), une boutique encore en période
+ * valide (essai gratuit compris) et le super administrateur de la plateforme.
  */
 export async function requireLiveWrite(req: Request, _res: Response, next: NextFunction): Promise<void> {
   if (!req.store) return next(forbidden('Contexte boutique manquant'));
@@ -72,6 +85,9 @@ export async function requireLiveWrite(req: Request, _res: Response, next: NextF
 
   const method = (req.method ?? 'GET').toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+
+  // Vérifié uniquement au moment de bloquer : aucun surcoût pour les boutiques à jour.
+  if (req.user && (await isPlatformAdmin(req.user.id))) return next();
 
   return next(
     paymentRequired(

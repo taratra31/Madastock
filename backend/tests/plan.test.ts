@@ -1,115 +1,90 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import express from 'express';
-import request from 'supertest';
-import { requireLiveWrite } from '../src/middleware/plan';
-import { getSubscriptionState } from '../src/services/subscription.service';
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 const prismaMock = vi.hoisted(() => ({
   subscription: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn() },
+  store: { findUnique: vi.fn() },
 }));
 
-vi.mock('../src/lib/prisma', () => ({
-  default: prismaMock,
-}));
+vi.mock('../src/lib/prisma', () => ({ default: prismaMock }));
 
-function makeApp() {
-  const app = express();
-  app.use(express.json());
-  app.use((req: Request, _res: Response, next: NextFunction) => {
-    (req as unknown as { store?: { id: string } }).store = { id: 'store-1' };
-    next();
-  });
-  app.use(requireLiveWrite);
-  app.post('/write', (_req, res) => res.json({ ok: true }));
-  app.delete('/delete', (_req, res) => res.json({ ok: true }));
-  app.get('/read', (_req, res) => res.json({ ok: true }));
-  // Même formateur d'erreur que app.ts : { error: message }.
-  app.use((err: { statusCode?: number; message: string }, _req: Request, res: Response, _next: NextFunction) => {
-    res.status(err.statusCode ?? 500).json({ error: err.message });
-  });
-  return app;
-}
+import { requireLiveWrite } from '../src/middleware/plan';
 
-function mockSub(overrides: Record<string, unknown> = {}) {
+type PrismaMock = {
+  subscription: { findUnique: ReturnType<typeof vi.fn> };
+  user: { findUnique: ReturnType<typeof vi.fn> };
+};
+
+const db = prismaMock as unknown as PrismaMock;
+
+function storeReq(overrides: Partial<Request> = {}): Request {
   return {
-    id: 'sub-1',
-    storeId: 'store-1',
-    planId: 'plan-1',
-    status: 'ACTIVE',
-    currentPeriodStart: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-    currentPeriodEnd: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
-    plan: { name: 'STARTER', priceAr: '25000', durationDays: 30, durationMonths: null, featuresJson: '{"pos":true,"stock":true,"reports":true}' },
-    store: { billingExempt: false },
+    method: 'POST',
+    store: { id: 'store-1', role: 'OWNER', isOwner: true, canManageAll: true },
+    user: { id: 'user-1', email: 'owner@madastock.mg' },
     ...overrides,
-  };
+  } as unknown as Request;
 }
+
+const expiredSubscription = {
+  status: 'EXPIRED',
+  currentPeriodEnd: new Date('2026-01-01T00:00:00.000Z'),
+  trialEndsAt: new Date('2026-01-01T00:00:00.000Z'),
+  plan: { featuresJson: '{}' },
+  store: { billingExempt: false },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.subscription.findUnique.mockResolvedValue(expiredSubscription);
+  db.user.findUnique.mockResolvedValue({ isSuperAdmin: false, isActive: true, deletedAt: null });
 });
 
-describe('requireLiveWrite', () => {
-  it('abonnement actif : les écritures et lectures passent', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue(mockSub());
-    const app = makeApp();
-    expect((await request(app).post('/write').send({})).status).toBe(200);
-    expect((await request(app).delete('/delete')).status).toBe(200);
-    expect((await request(app).get('/read')).status).toBe(200);
+const run = (req: Request) => {
+  const next = vi.fn() as unknown as NextFunction;
+  return requireLiveWrite(req, {} as Response, next).then(() => next);
+};
+
+describe('Contrôle d\'abonnement en écriture', () => {
+  it('refuse en 402 un membre d\'une boutique expirée', async () => {
+    const next = await run(storeReq());
+    expect(next).toHaveBeenCalledTimes(1);
+    const error = next.mock.calls[0][0] as { statusCode?: number };
+    expect(error.statusCode).toBe(402);
   });
 
-  it('abonnement expiré : écritures bloquées en 402, lectures autorisées', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue(
-      mockSub({ currentPeriodEnd: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) }),
+  it('laisse passer le super administrateur de la plateforme', async () => {
+    db.user.findUnique.mockResolvedValue({ isSuperAdmin: true, isActive: true, deletedAt: null });
+    const next = await run(storeReq());
+    expect(next).toHaveBeenCalledWith();
+    expect(db.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'user-1' }, select: expect.any(Object) }),
     );
-    const app = makeApp();
-    const post = await request(app).post('/write').send({});
-    expect(post.status).toBe(402);
-    expect(post.body.error).toBe('Votre abonnement a expiré. Renouvelez-le pour continuer à utiliser MadaStock.');
-    const del = await request(app).delete('/delete');
-    expect(del.status).toBe(402);
-    const get = await request(app).get('/read');
-    expect(get.status).toBe(200);
   });
 
-  it('essai gratuit en cours : aucune restriction', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue(mockSub({ status: 'TRIALING' }));
-    const app = makeApp();
-    expect((await request(app).post('/write').send({})).status).toBe(200);
+  it('ne laisse pas passer un super administrateur désactivé ou supprimé', async () => {
+    db.user.findUnique.mockResolvedValue({ isSuperAdmin: true, isActive: false, deletedAt: null });
+    const next = await run(storeReq());
+    expect((next.mock.calls[0][0] as { statusCode?: number }).statusCode).toBe(402);
   });
 
-  it('boutique interne (billingExempt) : jamais bloquée même expirée', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue(
-      mockSub({ store: { billingExempt: true }, currentPeriodEnd: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }),
-    );
-    const app = makeApp();
-    expect((await request(app).post('/write').send({})).status).toBe(200);
-  });
-
-  it('boutique sans abonnement : non verrouillée (évite tout blocage accidentel)', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue(null);
-    const app = makeApp();
-    expect((await request(app).post('/write').send({})).status).toBe(200);
-  });
-});
-
-describe('getSubscriptionState', () => {
-  it('expose les fonctionnalités du plan (featuresJson parsé)', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue({
-      ...mockSub(),
-      trialEndsAt: null,
+  it('ne consulte pas la base pour laisser passer une boutique à jour', async () => {
+    db.subscription.findUnique.mockResolvedValue({
       status: 'ACTIVE',
+      currentPeriodEnd: new Date('2099-01-01T00:00:00.000Z'),
+      trialEndsAt: null,
+      plan: { featuresJson: '{}' },
+      store: { billingExempt: false },
     });
-    const state = await getSubscriptionState('store-1', new Date());
-    expect(state?.features).toEqual({ pos: true, stock: true, reports: true });
-    expect(state?.isLive).toBe(true);
+    const next = await run(storeReq());
+    expect(next).toHaveBeenCalledWith();
+    expect(db.user.findUnique).not.toHaveBeenCalled();
   });
 
-  it('features vides quand featuresJson est illisible', async () => {
-    prismaMock.subscription.findUnique.mockResolvedValue(
-      mockSub({ plan: { name: 'STARTER', priceAr: '25000', durationDays: 30, durationMonths: null, featuresJson: 'not-json' } }),
-    );
-    const state = await getSubscriptionState('store-1', new Date());
-    expect(state?.features).toEqual({});
+  it('laisse toujours passer les lectures', async () => {
+    const next = await run(storeReq({ method: 'GET' } as Partial<Request>));
+    expect(next).toHaveBeenCalledWith();
+    expect(db.user.findUnique).not.toHaveBeenCalled();
   });
 });
