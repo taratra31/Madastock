@@ -319,55 +319,72 @@ export default function AppLayout() {
         </button>
       </div>
 
-      <nav className="flex-1 min-h-0 overflow-hidden px-3 py-2.5 space-y-2.5">
-        {navSections.map((section) => (
-          <div key={section.title}>
-            <p className="px-2.5 mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-              <span className="w-1 h-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400" />
-              {section.title}
-            </p>
-            <div className="space-y-0.5">
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/dashboard'}
-                  onClick={() => setSidebarOpen(false)}
-                  className={({ isActive }) =>
-                    `group flex items-center gap-2.5 px-2.5 py-[6px] rounded-lg text-[12.5px] font-medium transition-all ${
-                      isActive
-                        ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 text-white ring-1 ring-emerald-500/25'
-                        : 'text-slate-400 hover:text-white hover:bg-dark-800/70'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <item.icon className={`w-[18px] h-[18px] shrink-0 transition-colors ${isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                      <span className="truncate">{item.label}</span>
-                      {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                    </>
-                  )}
-                </NavLink>
-              ))}
+      {/* Zone de navigation : elle seule défile, l'en-tête et le compte restent fixes. */}
+      <nav
+        aria-label="Navigation principale"
+        className="scrollbar-slim flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3"
+        style={{ scrollbarGutter: 'stable' }}
+      >
+        <div className="space-y-5 pb-2">
+          {navSections.map((section) => (
+            <div key={section.title}>
+              <p className="px-3 mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span className="h-px flex-1 bg-gradient-to-r from-slate-700 to-transparent" />
+                {section.title}
+              </p>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/dashboard'}
+                    onClick={() => setSidebarOpen(false)}
+                    className={({ isActive }) =>
+                      `group relative flex items-center gap-3 pl-3 pr-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+                        isActive
+                          ? 'bg-gradient-to-r from-emerald-500/25 via-emerald-500/10 to-transparent text-white shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]'
+                          : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span
+                          className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-emerald-400 transition-all duration-200 ${
+                            isActive ? 'h-5 opacity-100' : 'h-0 opacity-0'
+                          }`}
+                        />
+                        <item.icon
+                          className={`w-[18px] h-[18px] shrink-0 transition-colors duration-150 ${
+                            isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-200'
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </nav>
 
-      <div className="p-2.5 border-t border-dark-800/80 shrink-0">
-        <div className="bg-dark-800/60 rounded-xl p-2.5 flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-md shadow-emerald-500/20">
+      <div className="shrink-0 border-t border-dark-800/80 bg-dark-900/80 backdrop-blur p-3">
+        <div className="group flex items-center gap-2.5 rounded-xl bg-white/[0.03] p-2.5 ring-1 ring-white/5 transition hover:bg-white/[0.06] hover:ring-white/10">
+          <span className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-emerald-500/20">
             {(user?.fullName ?? 'U').slice(0, 1).toUpperCase()}
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-medium text-white truncate">{user?.fullName}</p>
-            <p className="text-[10.5px] text-slate-400 truncate">{currentRole ? roleLabels[currentRole] ?? currentRole : user?.email}</p>
+            <p className="text-[10.5px] text-slate-400 truncate">
+              {currentRole ? roleLabels[currentRole] ?? currentRole : user?.email}
+            </p>
           </div>
           <button
             onClick={handleLogout}
             title="Déconnexion"
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-dark-700 transition-colors"
+            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -379,17 +396,20 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 bg-dark-900 z-40">
+      <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 z-40 border-r border-white/5 bg-gradient-to-b from-dark-900 to-[#0a1016]">
         {sidebarContent}
       </aside>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
-          <div className="fixed inset-0 bg-dark-900/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 w-72 bg-dark-900 z-50 shadow-2xl">{sidebarContent}</aside>
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <aside className="fixed inset-y-0 left-0 w-72 z-50 shadow-2xl border-r border-white/5 bg-gradient-to-b from-dark-900 to-[#0a1016]">
+            {sidebarContent}
+          </aside>
         </div>
       )}
+
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200">
