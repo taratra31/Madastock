@@ -8,3 +8,8 @@ logs/
 .vscode/
 .git/
 *.tsbuildinfo
+
+# Base SQLite locale + fichiers temporaires Prisma
+backend/prisma/*.db-journal
+backend/prisma/*.db-wal
+backend/prisma/*.db-shm

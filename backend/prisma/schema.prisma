@@ -159,6 +159,7 @@ model Store {
   reminders        Reminder[]
   invoices         Invoice[]
   payments         Payment[]
+  emailDispatches  EmailDispatch[]
 
   @@index([name])
   @@map("stores")
@@ -180,6 +181,25 @@ model StoreMember {
   @@unique([storeId, userId])
   @@index([userId])
   @@map("store_members")
+}
+
+/// Journal des envois d'e-mails automatiques (résumés d'alertes) : évite
+/// d'envoyer deux fois le même résumé le même jour au même destinataire.
+model EmailDispatch {
+  id        String   @id @default(uuid())
+  storeId   String
+  email     String
+  /// Type d'envoi : LOW_STOCK, EXPIRING_SUBSCRIPTION...
+  kind      String
+  /// Jour d'envoi : 2026-09-30 pour un résumé quotidien.
+  periodKey String
+  createdAt DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, email, kind, periodKey])
+  @@index([storeId])
+  @@map("email_dispatches")
 }
 
 // ============================================================

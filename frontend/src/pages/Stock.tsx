@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  ArrowLeftRight,
   Boxes,
   AlertTriangle,
   History,
@@ -229,6 +230,12 @@ export default function Stock() {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [expiry, setExpiry] = useState(searchParams.get('expiry') ?? '');
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferProductId, setTransferProductId] = useState('');
+  const [transferFrom, setTransferFrom] = useState('');
+  const [transferTo, setTransferTo] = useState('');
+  const [transferQty, setTransferQty] = useState('');
+  const [transferReason, setTransferReason] = useState('');
   const [adjustType, setAdjustType] = useState<'IN' | 'OUT'>('IN');
   const [productId, setProductId] = useState('');
   const [qty, setQty] = useState('');
@@ -286,6 +293,49 @@ export default function Stock() {
     onError: (err: any) => toast.error(err.response?.data?.error ?? 'Erreur'),
   });
 
+  const activeWarehouses = (warehouses ?? []).filter((w) => w.isActive);
+
+  const transferMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/warehouses/transfers', {
+        productId: transferProductId,
+        fromWarehouseId: transferFrom,
+        toWarehouseId: transferTo,
+        quantity: Number(transferQty),
+        reason: transferReason.trim() || undefined,
+      });
+      return res.data;
+    },
+    onSuccess: (data: any) => {
+      toast.success(`Transfert effectué : ${data?.quantity} unité(s) vers ${data?.to?.name ?? ''}`);
+      queryClient.invalidateQueries({ queryKey: ['stock'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setTransferOpen(false);
+      setTransferQty('');
+      setTransferReason('');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? 'Erreur'),
+  });
+
+  const openTransfer = (preProductId?: string) => {
+    setTransferProductId(preProductId ?? '');
+    setTransferFrom(warehouseId || (activeWarehouses[0]?.id ?? ''));
+    setTransferTo(activeWarehouses.find((w) => w.id !== warehouseId)?.id ?? '');
+    setTransferQty('');
+    setTransferReason('');
+    setTransferOpen(true);
+  };
+
+  const handleTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferProductId || !transferFrom || !transferTo || Number(transferQty) <= 0) {
+      toast.error('Complétez le produit, les deux dépôts et la quantité');
+      return;
+    }
+    transferMutation.mutate();
+  };
+
   const openAdjust = (type: 'IN' | 'OUT', preProductId?: string) => {
     setAdjustType(type);
     setProductId(preProductId ?? '');
@@ -322,6 +372,12 @@ export default function Stock() {
         actions={
           canWrite ? (
             <>
+              {activeWarehouses.length > 1 && (
+                <Button variant="outline" onClick={() => openTransfer()}>
+                  <ArrowLeftRight className="w-4 h-4" />
+                  Transférer
+                </Button>
+              )}
               <Button variant="outline" onClick={() => openAdjust('OUT')}>
                 <ArrowUpFromLine className="w-4 h-4" />
                 Sortie
@@ -503,6 +559,16 @@ export default function Stock() {
                     <td className="px-4 py-3 text-right">
                       {canWrite && (
                         <div className="flex items-center justify-end gap-1">
+                          {activeWarehouses.length > 1 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title="Transférer vers un autre dépôt"
+                              onClick={() => openTransfer(r.productId ?? undefined)}
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button variant="outline" size="sm" onClick={() => openAdjust('IN', r.productId ?? undefined)}>+</Button>
                           <Button variant="outline" size="sm" onClick={() => openAdjust('OUT', r.productId ?? undefined)}>−</Button>
                         </div>
@@ -565,6 +631,53 @@ export default function Stock() {
       </Modal>
       </>
       )}
+      <Modal
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        title="Transférer entre dépôts"
+        description="La quantité quitte un dépôt et arrive dans l'autre. L'opération est enregistrée dans l'historique des deux dépôts."
+      >
+        <form onSubmit={handleTransfer} className="space-y-4">
+          <Field label="Produit" required>
+            <Select value={transferProductId} onChange={(e) => setTransferProductId(e.target.value)} required>
+              <option value="">Choisir un produit...</option>
+              {(products ?? []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ''}</option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Depuis" required>
+              <Select value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)} required>
+                <option value="">Dépôt de départ...</option>
+                {activeWarehouses.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Vers" required>
+              <Select value={transferTo} onChange={(e) => setTransferTo(e.target.value)} required>
+                <option value="">Dépôt d'arrivée...</option>
+                {activeWarehouses.filter((w) => w.id !== transferFrom).map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Quantité" required>
+            <Input type="number" min={0} step="any" value={transferQty} onChange={(e) => setTransferQty(e.target.value)} placeholder="0" required />
+          </Field>
+          <Field label="Motif">
+            <Input value={transferReason} onChange={(e) => setTransferReason(e.target.value)} placeholder="Ex : réassort du point de vente" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setTransferOpen(false)}>Annuler</Button>
+            <Button type="submit" disabled={transferMutation.isPending}>
+              {transferMutation.isPending ? 'Transfert...' : 'Transférer'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

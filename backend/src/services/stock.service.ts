@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { badRequest, notFound } from '../utils/httpError';
+import * as warehouseService from './warehouse.service';
 
 /** Journal des mouvements de stock : filtres + pagination. */
 export async function listMovements(storeId: string, query: {
@@ -258,6 +259,7 @@ export async function adjustStock(storeId: string, input: {
   });
 }
 
+/** Dépôts : la source de vérité est le service warehouse (listes enrichies). */
 export async function listWarehouses(storeId: string) {
-  return prisma.warehouse.findMany({ where: { storeId }, orderBy: { isMain: 'desc' } });
+  return warehouseService.listWarehouses(storeId);
 }

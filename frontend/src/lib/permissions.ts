@@ -40,6 +40,7 @@ export const NAV_PERMISSION: Record<string, string> = {
   '/categories': 'product.read',
   '/brands': 'product.read',
   '/stock': 'stock.read',
+  '/warehouses': 'stock.read',
   '/customers': 'customer.read',
   '/suppliers': 'supplier.read',
   '/purchases': 'purchase.read',
