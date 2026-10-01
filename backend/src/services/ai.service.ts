@@ -93,6 +93,13 @@ async function geminiGenerateText(
   );
 
   if (!res.ok) {
+    // Détail dans les logs Render : sinon impossible de savoir si c'est une
+    // clé invalide (400/403), un quota dépassé (429) ou un modèle inconnu (404).
+    const detail = await res.text().catch(() => '');
+    console.error(
+      `[AI] Gemini ${res.status} (modele=${env.GEMINI_MODEL}) :`,
+      detail.slice(0, 500),
+    );
     throw serviceUnavailable(`Le service IA est indisponible (${res.status}).`);
   }
 

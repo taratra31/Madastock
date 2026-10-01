@@ -48,13 +48,15 @@ export default function AiAssistant({
       const res = await api.post('/ai/chat', { messages: history });
       setMessages((prev) => [...prev, { role: 'assistant', content: (res.data as { reply: string }).reply }]);
     } catch (err) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
+      const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response;
+      // On affiche le VRAI message du backend : c'est lui qui sait
+      // (clé absente, quota, modèle inconnu, réseau...).
+      const serverMsg = status?.data?.error;
       const errorMsg =
-        status === 503
-          ? "L'assistant n'est pas encore activé sur ce serveur (clé Gemini manquante)."
-          : status === 401 || status === 403
-            ? 'Votre session a expiré. Reconnectez-vous puis réessayez.'
-            : "Impossible de contacter l'assistant. Réessayez.";
+        serverMsg ??
+        (status?.status === 401 || status?.status === 403
+          ? 'Votre session a expiré. Reconnectez-vous puis réessayez.'
+          : "Impossible de contacter l'assistant. Réessayez.");
       setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setSending(false);
