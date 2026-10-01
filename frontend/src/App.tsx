@@ -12,6 +12,7 @@ import Products from './pages/Products';
 import Categories from './pages/Categories';
 import Stock from './pages/Stock';
 import Warehouses from './pages/Warehouses';
+import DataTransfer from './pages/DataTransfer';
 import Customers from './pages/Customers';
 import Invoices from './pages/Invoices';
 import StoreSettings from './pages/StoreSettings';
@@ -63,6 +64,7 @@ function App() {
           <Route path="/categories" element={<Categories />} />
           <Route path="/stock" element={<Stock />} />
       <Route path="/warehouses" element={<Warehouses />} />
+      <Route path="/data-transfer" element={<DataTransfer />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/invoices" element={<Invoices />} />

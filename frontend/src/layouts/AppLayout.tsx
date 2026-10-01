@@ -7,6 +7,7 @@ import {
   Tags,
   Boxes,
   Warehouse,
+  ArrowLeftRight,
   Users,
   FileText,
   Settings,
@@ -82,6 +83,7 @@ const SETTINGS_SECTION: NavSection = {
   title: 'Paramètres',
   items: [
     { label: 'Notifications', to: '/notifications', icon: Bell },
+    { label: 'Import / Export', to: '/data-transfer', icon: ArrowLeftRight },
     { label: 'Boutique', to: '/settings', icon: Settings },
   ],
 };

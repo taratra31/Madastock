@@ -41,6 +41,7 @@ export const NAV_PERMISSION: Record<string, string> = {
   '/brands': 'product.read',
   '/stock': 'stock.read',
   '/warehouses': 'stock.read',
+  '/data-transfer': 'data.export',
   '/customers': 'customer.read',
   '/suppliers': 'supplier.read',
   '/purchases': 'purchase.read',
