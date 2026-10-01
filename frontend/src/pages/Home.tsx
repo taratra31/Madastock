@@ -2,7 +2,6 @@ import { useEffect, useState, type ElementType } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { formatNumber } from '../lib/format';
-import { MobileMoneyLogo, MOBILE_MONEY_OPERATORS } from '../components/MobileMoneyLogo';
 import api from '../lib/api';
 import {
   Menu,
@@ -308,7 +307,7 @@ export default function Home() {
               </Link>
               <Link
                 to="/register"
-                className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm shadow-red-500/30 transition-colors"
+                className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm shadow-green-500/30 transition-colors"
               >
                 Créer un compte
               </Link>
@@ -351,7 +350,7 @@ export default function Home() {
               </Link>
               <Link
                 to="/register"
-                className="text-center bg-red-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg"
+                className="text-center bg-green-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg"
               >
                 Créer un compte
               </Link>
@@ -366,19 +365,19 @@ export default function Home() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'radial-gradient(600px circle at 20% 20%, rgba(239,68,68,0.08), transparent 60%), radial-gradient(500px circle at 85% 10%, rgba(239,68,68,0.06), transparent 60%)',
+              'radial-gradient(600px circle at 20% 20%, rgba(34,197,94,0.08), transparent 60%), radial-gradient(500px circle at 85% 10%, rgba(34,197,94,0.06), transparent 60%)',
           }}
         />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 lg:pt-24 lg:pb-28">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
-              <span className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full">
+              <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-full">
                 <Zap className="w-3.5 h-3.5" />
                 Le SaaS N°1 pour les commerces à Madagascar
               </span>
-              <h1 className="mt-6 text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-dark-900 leading-[1.05]">
+              <h1 className="mt-6 text-4xl md:text-5xl xl:text-6xl font-bold tracking-tight text-dark-900 leading-[1.08]">
                 Gérez votre boutique{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-rose-500">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-500">
                   simplement
                 </span>{' '}
                 et en toute confiance.
@@ -390,7 +389,7 @@ export default function Home() {
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-red-500/30 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-green-500/30 transition-colors"
                 >
                   Démarrer gratuitement
                   <ArrowRight className="w-4 h-4" />
@@ -409,28 +408,16 @@ export default function Home() {
                   { icon: Smartphone, label: 'Compatible téléphone & tablette' },
                 ].map(({ icon: Icon, label }) => (
                   <div key={label} className="flex items-center gap-2 text-sm text-slate-600">
-                    <Icon className="w-4 h-4 text-red-600" />
+                    <Icon className="w-4 h-4 text-green-600" />
                     {label}
                   </div>
                 ))}
-              </div>
-
-              {/* Operateurs mobile money acceptes pour l'abonnement. */}
-              <div className="mt-10 border-t border-slate-100 pt-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Paiement via mobile money
-                </p>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  {MOBILE_MONEY_OPERATORS.map((operator) => (
-                    <MobileMoneyLogo key={operator} operator={operator} compact />
-                  ))}
-                </div>
               </div>
             </div>
 
             {/* Mockup */}
             <div className="relative">
-              <div className="absolute -inset-4 bg-gradient-to-tr from-red-100 via-transparent to-rose-100 rounded-3xl blur-2xl opacity-60" />
+              <div className="absolute -inset-4 bg-gradient-to-tr from-green-100 via-transparent to-emerald-100 rounded-3xl blur-2xl opacity-60" />
               <div className="relative bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-200/70 p-5">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                   <div>
@@ -441,7 +428,7 @@ export default function Home() {
                   </div>
                   <span
                     className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                      (live?.today.deltaPct ?? 0) >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50'
+                      (live?.today.deltaPct ?? 0) >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'
                     }`}
                   >
                     <span>{(live?.today.deltaPct ?? 0) >= 0 ? '▲' : '▼'}</span>
@@ -469,7 +456,7 @@ export default function Home() {
                         return live!.week.map((d, i) => (
                           <div key={i} className="flex-1 flex flex-col justify-end">
                             <div
-                              className={`rounded-t-md ${i === 6 ? 'bg-red-600' : 'bg-red-100'}`}
+                              className={`rounded-t-md ${i === 6 ? 'bg-green-600' : 'bg-green-100'}`}
                               style={{ height: `${Math.max(8, Math.round((d.revenueAr / max) * 100))}%` }}
                             />
                           </div>
@@ -478,7 +465,7 @@ export default function Home() {
                     : [38, 55, 42, 70, 58, 82, 64].map((h, i) => (
                         <div key={i} className="flex-1 flex flex-col justify-end">
                           <div
-                            className={`rounded-t-md ${i === 5 ? 'bg-red-600' : 'bg-red-100'}`}
+                            className={`rounded-t-md ${i === 5 ? 'bg-green-600' : 'bg-green-100'}`}
                             style={{ height: `${h}%` }}
                           />
                         </div>
@@ -502,7 +489,7 @@ export default function Home() {
                   ).map((s) => (
                     <div key={s.receipt} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
-                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
                         <div>
                           <p className="text-sm font-medium text-dark-900">{s.name}</p>
                           <p className="text-[11px] text-slate-400">{s.receipt}</p>
@@ -528,7 +515,7 @@ export default function Home() {
             { value: '80%', label: 'Gain de temps en gestion' },
           ].map((s) => (
             <div key={s.label} className="text-center">
-              <p className="text-3xl font-extrabold text-red-600">{s.value}</p>
+              <p className="text-3xl font-extrabold text-green-600">{s.value}</p>
               <p className="mt-1 text-sm text-slate-500">{s.label}</p>
             </div>
           ))}
@@ -539,7 +526,7 @@ export default function Home() {
       <section id="fonctionnalites" className="py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-red-600 font-semibold text-sm uppercase tracking-wider">Fonctionnalités</span>
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Fonctionnalités</span>
             <h2 className={sectionTitle}>Tout ce qu’il faut pour gérer votre commerce</h2>
             <p className={sectionSubtitle}>
               MadaStock couvre l’ensemble de vos besoins quotidiens, de l’encaissement à l’analyse de vos performances.
@@ -549,10 +536,10 @@ export default function Home() {
             {features.map((f) => (
               <div
                 key={f.title}
-                className="group bg-white border border-slate-200 rounded-2xl p-6 hover:border-red-300 hover:shadow-lg hover:shadow-red-500/5 transition-all"
+                className="group bg-white border border-slate-200 rounded-2xl p-6 hover:border-green-300 hover:shadow-lg hover:shadow-green-500/5 transition-all"
               >
-                <span className="inline-flex w-11 h-11 rounded-xl bg-red-50 group-hover:bg-red-600 items-center justify-center transition-colors">
-                  <f.icon className="w-5 h-5 text-red-600 group-hover:text-white transition-colors" />
+                <span className="inline-flex w-11 h-11 rounded-xl bg-green-50 group-hover:bg-green-600 items-center justify-center transition-colors">
+                  <f.icon className="w-5 h-5 text-green-600 group-hover:text-white transition-colors" />
                 </span>
                 <h3 className="mt-4 font-semibold text-dark-900">{f.title}</h3>
                 <p className="mt-2 text-sm text-slate-500 leading-relaxed">{f.description}</p>
@@ -566,7 +553,7 @@ export default function Home() {
       <section id="comment" className="py-20 lg:py-24 bg-dark-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-red-400 font-semibold text-sm uppercase tracking-wider">Comment ça marche</span>
+            <span className="text-green-400 font-semibold text-sm uppercase tracking-wider">Comment ça marche</span>
             <h2 className="mt-3 text-3xl md:text-4xl font-bold tracking-tight">Prêt en 10 minutes</h2>
             <p className="mt-3 text-slate-400 max-w-2xl mx-auto">
               Pas besoin d’être expert en informatique. Suivez juste ces trois étapes.
@@ -591,7 +578,7 @@ export default function Home() {
               },
             ].map((s) => (
               <div key={s.step} className="relative bg-dark-800 rounded-2xl border border-dark-700 p-7">
-                <span className="text-4xl font-extrabold text-red-500/30">{s.step}</span>
+                <span className="text-4xl font-extrabold text-green-500/30">{s.step}</span>
                 <h3 className="mt-4 text-lg font-semibold">{s.title}</h3>
                 <p className="mt-2 text-sm text-slate-400 leading-relaxed">{s.text}</p>
               </div>
@@ -600,7 +587,7 @@ export default function Home() {
           <div className="mt-10 text-center">
             <Link
               to="/register"
-              className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-400 text-white font-semibold px-7 py-3.5 rounded-xl transition-colors"
+              className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-dark-900 font-semibold px-7 py-3.5 rounded-xl transition-colors"
             >
               Commencer maintenant
               <ArrowRight className="w-4 h-4" />
@@ -613,7 +600,7 @@ export default function Home() {
       <section id="temoignages" className="py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-red-600 font-semibold text-sm uppercase tracking-wider">Témoignages</span>
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Témoignages</span>
             <h2 className={sectionTitle}>Ils gèrent leur boutique avec MadaStock</h2>
             <p className={sectionSubtitle}>Des commerçants de toute l’île nous font confiance au quotidien.</p>
           </div>
@@ -627,7 +614,7 @@ export default function Home() {
                 </div>
                 <p className="mt-4 text-slate-700 leading-relaxed">« {t.text} »</p>
                 <div className="mt-6 flex items-center gap-3">
-                  <span className="w-11 h-11 rounded-full bg-red-600 text-white flex items-center justify-center font-semibold text-sm">
+                  <span className="w-11 h-11 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-sm">
                     {t.initials}
                   </span>
                   <div>
@@ -645,7 +632,7 @@ export default function Home() {
       <section id="tarifs" className="py-20 lg:py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-red-600 font-semibold text-sm uppercase tracking-wider">Tarifs</span>
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Tarifs</span>
             <h2 className={sectionTitle}>Des prix simples et transparents</h2>
             <p className={sectionSubtitle}>
               Commencez gratuitement, puis choisissez le plan adapté à la taille de votre activité.
@@ -673,11 +660,11 @@ export default function Home() {
                   }`}
                 >
                   {p.highlighted && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-dark-900 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
                       LE PLUS POPULAIRE
                     </span>
                   )}
-                  <h3 className={`font-semibold ${p.highlighted ? 'text-red-400' : 'text-dark-900'}`}>{p.name}</h3>
+                  <h3 className={`font-semibold ${p.highlighted ? 'text-green-400' : 'text-dark-900'}`}>{p.name}</h3>
                   <div className="mt-3 flex items-baseline gap-1">
                     <span className="text-3xl font-extrabold">{p.price}</span>
                     <span className={`text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.period}</span>
@@ -686,7 +673,7 @@ export default function Home() {
                   <ul className="mt-6 space-y-3">
                     {p.features.map((f) => (
                       <li key={f} className="flex items-start gap-2.5 text-sm">
-                        <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${p.highlighted ? 'text-red-400' : 'text-red-600'}`} />
+                        <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${p.highlighted ? 'text-green-400' : 'text-green-600'}`} />
                         <span className={p.highlighted ? 'text-slate-200' : 'text-slate-600'}>{f}</span>
                       </li>
                     ))}
@@ -696,8 +683,8 @@ export default function Home() {
                       href={p.ctaHref}
                       className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
                         p.highlighted
-                          ? 'bg-red-500 hover:bg-red-400 text-white'
-                          : 'border border-slate-300 hover:border-red-500 hover:text-red-600 text-dark-900'
+                          ? 'bg-green-500 hover:bg-green-400 text-dark-900'
+                          : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
                       }`}
                     >
                       {p.cta}
@@ -708,8 +695,8 @@ export default function Home() {
                       to={p.ctaHref}
                       className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
                         p.highlighted
-                          ? 'bg-red-500 hover:bg-red-400 text-white'
-                          : 'border border-slate-300 hover:border-red-500 hover:text-red-600 text-dark-900'
+                          ? 'bg-green-500 hover:bg-green-400 text-dark-900'
+                          : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
                       }`}
                     >
                       {p.cta}
@@ -727,7 +714,7 @@ export default function Home() {
       <section id="faq" className="py-20 lg:py-24">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <span className="text-red-600 font-semibold text-sm uppercase tracking-wider">FAQ</span>
+            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">FAQ</span>
             <h2 className="mt-3 text-3xl md:text-4xl font-bold tracking-tight text-dark-900">Questions fréquentes</h2>
           </div>
           <div className="mt-10 space-y-3">
@@ -754,7 +741,7 @@ export default function Home() {
       {/* CTA */}
       <section className="pb-20 lg:pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-red-800 rounded-3xl px-8 py-14 text-center shadow-2xl shadow-red-600/30">
+          <div className="relative overflow-hidden bg-gradient-to-br from-green-600 to-emerald-700 rounded-3xl px-8 py-14 text-center shadow-2xl shadow-green-600/30">
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -765,13 +752,13 @@ export default function Home() {
             <h2 className="relative text-3xl md:text-4xl font-bold tracking-tight text-white">
               Prêt à gérer votre boutique comme un pro ?
             </h2>
-            <p className="relative mt-3 text-red-100 max-w-xl mx-auto">
+            <p className="relative mt-3 text-green-100 max-w-xl mx-auto">
               Créez votre compte gratuit en 2 minutes et découvrez votre boutique sous un nouveau jour.
             </p>
             <div className="relative mt-8 flex flex-col sm:flex-row justify-center gap-3">
               <Link
                 to="/register"
-                className="bg-white hover:bg-slate-50 text-red-700 font-semibold px-7 py-3.5 rounded-xl transition-colors"
+                className="bg-white hover:bg-slate-50 text-green-700 font-semibold px-7 py-3.5 rounded-xl transition-colors"
               >
                 Démarrer gratuitement
               </Link>
@@ -823,23 +810,23 @@ export default function Home() {
             <h4 className="text-white font-semibold text-sm">Contact</h4>
             <ul className="mt-4 space-y-2.5 text-sm">
               <li className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-red-500" />
+                <Phone className="w-4 h-4 text-green-500" />
                 +261 32 63 21 784
               </li>
               <li className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-red-500" />
+                <Mail className="w-4 h-4 text-green-500" />
                 madaorganisation@gmail.com
               </li>
               <li className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-red-500" />
+                <MapPin className="w-4 h-4 text-green-500" />
                 Antananarivo, Madagascar
               </li>
               <li className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-red-500" />
+                <Clock className="w-4 h-4 text-green-500" />
                 Lun – Sam : 8h – 18h
               </li>
               <li className="flex items-center gap-2">
-                <BellRing className="w-4 h-4 text-red-500" />
+                <BellRing className="w-4 h-4 text-green-500" />
                 WhatsApp & e-mail
               </li>
             </ul>

@@ -398,7 +398,9 @@ export default function Billing() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* `items-stretch` + `h-full` : les 4 offres partagent exactement
+                  la meme hauteur, meme si le nombre de fonctions change. */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
                 {data.plans.map((plan) => {
                   const isCurrent = plan.id === currentPlanId;
                   const free = Number(plan.priceAr) <= 0;
@@ -409,7 +411,7 @@ export default function Billing() {
                     <div
                       key={plan.id}
                       className={cn(
-                        'relative flex flex-col rounded-2xl border bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg',
+                        'relative flex h-full flex-col rounded-2xl border bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg',
                         isCurrent
                           ? 'border-green-500 ring-2 ring-green-500/30 shadow-lg shadow-green-500/10'
                           : 'border-slate-200 shadow-sm',
@@ -428,17 +430,22 @@ export default function Billing() {
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-dark-900 text-base">{planLabel[plan.name] ?? plan.name}</h3>
                       </div>
-                      <p className="text-sm text-slate-500 mt-2 min-h-[52px] leading-relaxed">{plan.description}</p>
+                      <p className="text-sm text-slate-500 mt-2 leading-relaxed line-clamp-3 min-h-[4.5rem]">
+                        {plan.description}
+                      </p>
                       <p className="mt-4 text-2xl font-extrabold text-dark-900">
                         {formatNumber(plan.priceAr)}
                         <span className="text-sm font-medium text-slate-500"> Ar / mois</span>
                       </p>
 
-                      <ul className="mt-4 space-y-2 text-[13px] text-slate-600">
+                      {/* `flex-1` pousse le bouton en bas : toutes les cartes
+                          finissent a la meme ligne meme si une description
+                          ou une liste de fonctions est plus longue. */}
+                      <ul className="mt-4 flex-1 space-y-2 text-[13px] text-slate-600">
                         {planFeatures(plan).map((f, i) => (
                           <li key={i} className="flex items-center gap-2">
-                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                              <f.icon className="w-3 h-3" />
+                            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                              <f.icon className="h-3 w-3" />
                             </span>
                             {f.label}
                           </li>
@@ -482,21 +489,21 @@ export default function Billing() {
           {!exempt && (
             <section>
               <Card className="p-5 sm:p-6 bg-gradient-to-br from-slate-50 to-white">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <span className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5" />
                   </span>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-dark-900">Paiement sécurisé</h3>
                     <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">
                       Vous serez redirigé vers la page de paiement sécurisée. Dès que le paiement est validé, votre
                       abonnement est activé automatiquement.
                     </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {MOBILE_MONEY_OPERATORS.map((operator) => (
-                      <MobileMoneyLogo key={operator} operator={operator} />
-                    ))}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {MOBILE_MONEY_OPERATORS.map((operator) => (
+                        <MobileMoneyLogo key={operator} operator={operator} />
+                      ))}
+                    </div>
                   </div>
                 </div>
               </Card>

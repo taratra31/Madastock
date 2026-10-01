@@ -52,8 +52,11 @@ export function MobileMoneyLogo({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-lg ring-1',
-        compact ? 'px-1.5 py-1' : 'gap-2 px-2.5 py-1.5',
+        // `h-*` fixe + `justify-center` garantissent une hauteur identique
+        // quel que soit le ratio du logo : sinon les trois vignettes se
+        // décalent verticalement des que l'une d'elles a une marge blanche.
+        'inline-flex items-center justify-center rounded-lg ring-1 leading-none',
+        compact ? 'h-8 px-1.5' : 'h-10 px-2.5',
         conf.tint,
         className,
       )}
@@ -65,14 +68,14 @@ export function MobileMoneyLogo({
           alt={conf.label}
           onError={() => setFailed(true)}
           className={cn(
-            'shrink-0 object-contain object-left',
-            compact ? 'h-4 max-w-[4.5rem]' : 'h-6 max-w-[7rem]',
+            'shrink-0 object-contain',
+            compact ? 'h-4 max-w-[4rem]' : 'h-5 max-w-[6rem]',
           )}
           style={{ width: 'auto' }}
           loading="lazy"
         />
       ) : conf.src ? (
-        <span className={cn('shrink-0 rounded-md', compact ? 'h-4 w-4' : 'h-6 w-6', conf.swatch)} />
+        <span className={cn('shrink-0 rounded-md', compact ? 'h-4 w-4' : 'h-5 w-5', conf.swatch)} />
       ) : (
         <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" role="img" aria-label="MVola">
           <rect width="24" height="24" rx="6" fill="#F97316" />
