@@ -2,6 +2,7 @@ import { useEffect, useState, type ElementType } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { formatNumber } from '../lib/format';
+import { MobileMoneyLogo, MOBILE_MONEY_OPERATORS } from '../components/MobileMoneyLogo';
 import api from '../lib/api';
 import {
   Menu,
@@ -14,7 +15,6 @@ import {
   Truck,
   CreditCard,
   ShieldCheck,
-  Zap,
   CheckCircle2,
   Star,
   ChevronDown,
@@ -274,22 +274,30 @@ export default function Home() {
 
   if (isAuthenticated && !isLoading) return <Navigate to="/dashboard" replace />;
 
-  const navLink = 'text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors';
-  const sectionTitle = 'text-3xl md:text-4xl font-bold tracking-tight text-dark-900';
-  const sectionSubtitle = 'mt-3 text-slate-500 max-w-2xl mx-auto';
+  const navLink =
+    'text-slate-600 hover:text-dark-900 font-medium text-sm transition-colors relative after:absolute after:-bottom-1 after:left-0 after:h-px after:w-0 after:bg-green-600 after:transition-all hover:after:w-full';
+  const sectionTitle = 'text-3xl md:text-4xl font-extrabold tracking-tight text-dark-900 text-balance';
+  const sectionSubtitle = 'mt-4 text-slate-500 max-w-2xl mx-auto text-[15px] leading-relaxed';
+  const eyebrow = 'inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-green-600';
+
+  // L'offre « Entreprise » n'est pas une carte comme les autres : elle est
+  // affichee en bandeau large sous les plans, sinon 5 colonnes deviennent
+  // illisibles sur un ordinateur portable.
+  const standardPlans = priceCards.filter((p) => p.key !== 'enterprise');
+  const enterprisePlan = priceCards.find((p) => p.key === 'enterprise');
 
   return (
     <div className="bg-white font-sans">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-100">
+      <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-slate-200/70 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <a href="#" className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center overflow-hidden shadow-sm shadow-red-600/30">
-                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain p-0.5" />
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center overflow-hidden shadow-md shadow-green-600/25">
+                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain p-1" />
               </span>
-              <span className="text-xl font-bold tracking-tight text-dark-900">
-                Mada<span className="text-red-600">Stock</span>
+              <span className="text-xl font-extrabold tracking-tight text-dark-900">
+                Mada<span className="text-green-600">Stock</span>
               </span>
             </a>
 
@@ -307,9 +315,10 @@ export default function Home() {
               </Link>
               <Link
                 to="/register"
-                className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm shadow-green-500/30 transition-colors"
+                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm shadow-green-600/25 transition-all"
               >
                 Créer un compte
+                <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
 
@@ -365,17 +374,31 @@ export default function Home() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'radial-gradient(600px circle at 20% 20%, rgba(34,197,94,0.08), transparent 60%), radial-gradient(500px circle at 85% 10%, rgba(34,197,94,0.06), transparent 60%)',
+              'radial-gradient(700px circle at 15% 10%, rgba(34,197,94,0.10), transparent 60%), radial-gradient(600px circle at 85% 0%, rgba(16,185,129,0.08), transparent 60%)',
+          }}
+        />
+        {/* Trame de points : donne de la profondeur sans image externe. */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.55]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(15,23,42,0.07) 1px, transparent 0)',
+            backgroundSize: '28px 28px',
+            maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%)',
           }}
         />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 lg:pt-24 lg:pb-28">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
-              <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-full">
-                <Zap className="w-3.5 h-3.5" />
-                Le SaaS N°1 pour les commerces à Madagascar
+              <span className="inline-flex items-center gap-2 bg-white ring-1 ring-green-200 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                </span>
+                Plus de 500 commerçants malgaches nous font confiance
               </span>
-              <h1 className="mt-6 text-4xl md:text-5xl xl:text-6xl font-bold tracking-tight text-dark-900 leading-[1.08]">
+              <h1 className="mt-7 text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-dark-900 leading-[1.06] text-balance">
                 Gérez votre boutique{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-500">
                   simplement
@@ -386,17 +409,23 @@ export default function Home() {
                 Ventes, stock, clients, fournisseurs, caisse et rapports : MadaStock réunit tout en un seul
                 endroit. Sans installation, accessible depuis votre téléphone.
               </p>
+              {/* Bandeau des operateurs acceptes : rassure sur le paiement local. */}
+              <div className="mt-7 flex flex-wrap items-center gap-2.5">
+                {MOBILE_MONEY_OPERATORS.map((operator) => (
+                  <MobileMoneyLogo key={operator} operator={operator} compact />
+                ))}
+              </div>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-green-500/30 transition-colors"
+                  className="group inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:scale-[0.99] text-white font-semibold px-7 py-4 rounded-xl shadow-lg shadow-green-600/25 transition-all"
                 >
                   Démarrer gratuitement
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <a
                   href="#fonctionnalites"
-                  className="inline-flex items-center justify-center gap-2 border border-slate-200 hover:border-slate-300 bg-white text-dark-900 font-semibold px-7 py-3.5 rounded-xl transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:border-green-500 hover:text-green-700 active:scale-[0.99] bg-white text-dark-900 font-semibold px-7 py-4 rounded-xl transition-all"
                 >
                   Voir les fonctionnalités
                 </a>
@@ -506,17 +535,26 @@ export default function Home() {
       </section>
 
       {/* Stats band */}
-      <section className="border-y border-slate-100 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <section className="relative bg-dark-900 text-white overflow-hidden">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(600px circle at 50% 0%, rgba(34,197,94,0.14), transparent 65%)',
+          }}
+        />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-8">
           {[
             { value: '100%', label: 'En ligne, sans installation' },
             { value: '24/7', label: 'Accès depuis partout' },
             { value: '+500', label: 'Commerçants accompagnés' },
             { value: '80%', label: 'Gain de temps en gestion' },
-          ].map((s) => (
-            <div key={s.label} className="text-center">
-              <p className="text-3xl font-extrabold text-green-600">{s.value}</p>
-              <p className="mt-1 text-sm text-slate-500">{s.label}</p>
+          ].map((s, i) => (
+            <div
+              key={s.label}
+              className={`text-center ${i % 2 === 1 ? 'md:border-l' : ''} md:border-white/10 px-2 py-2`}
+            >
+              <p className="text-3xl md:text-4xl font-extrabold tracking-tight text-green-400">{s.value}</p>
+              <p className="mt-1.5 text-sm text-slate-400">{s.label}</p>
             </div>
           ))}
         </div>
@@ -526,8 +564,11 @@ export default function Home() {
       <section id="fonctionnalites" className="py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Fonctionnalités</span>
-            <h2 className={sectionTitle}>Tout ce qu’il faut pour gérer votre commerce</h2>
+            <span className={eyebrow}>
+              <span className="h-px w-6 bg-green-400" />
+              Fonctionnalités
+            </span>
+            <h2 className={`mt-4 ${sectionTitle}`}>Tout ce qu’il faut pour gérer votre commerce</h2>
             <p className={sectionSubtitle}>
               MadaStock couvre l’ensemble de vos besoins quotidiens, de l’encaissement à l’analyse de vos performances.
             </p>
@@ -536,12 +577,13 @@ export default function Home() {
             {features.map((f) => (
               <div
                 key={f.title}
-                className="group bg-white border border-slate-200 rounded-2xl p-6 hover:border-green-300 hover:shadow-lg hover:shadow-green-500/5 transition-all"
+                className="group relative bg-white border border-slate-200 rounded-2xl p-6 overflow-hidden hover:border-green-300 hover:shadow-xl hover:shadow-green-900/[0.07] hover:-translate-y-1 transition-all duration-300"
               >
-                <span className="inline-flex w-11 h-11 rounded-xl bg-green-50 group-hover:bg-green-600 items-center justify-center transition-colors">
-                  <f.icon className="w-5 h-5 text-green-600 group-hover:text-white transition-colors" />
+                <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-green-500 to-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="inline-flex w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 items-center justify-center shadow-sm shadow-green-600/20 group-hover:scale-105 transition-transform duration-300">
+                  <f.icon className="w-5 h-5 text-white" />
                 </span>
-                <h3 className="mt-4 font-semibold text-dark-900">{f.title}</h3>
+                <h3 className="mt-5 font-bold text-dark-900 text-[15px]">{f.title}</h3>
                 <p className="mt-2 text-sm text-slate-500 leading-relaxed">{f.description}</p>
               </div>
             ))}
@@ -577,9 +619,14 @@ export default function Home() {
                 text: 'Encaissiez vos ventes et suivez stock, clients et chiffre d\u2019affaires en temps réel.',
               },
             ].map((s) => (
-              <div key={s.step} className="relative bg-dark-800 rounded-2xl border border-dark-700 p-7">
-                <span className="text-4xl font-extrabold text-green-500/30">{s.step}</span>
-                <h3 className="mt-4 text-lg font-semibold">{s.title}</h3>
+              <div
+                key={s.step}
+                className="relative bg-dark-800/70 rounded-2xl border border-dark-700 p-7 hover:border-green-500/40 hover:bg-dark-800 transition-colors"
+              >
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10 text-green-400 text-sm font-extrabold ring-1 ring-green-500/30">
+                  {s.step}
+                </span>
+                <h3 className="mt-5 text-lg font-bold">{s.title}</h3>
                 <p className="mt-2 text-sm text-slate-400 leading-relaxed">{s.text}</p>
               </div>
             ))}
@@ -587,7 +634,7 @@ export default function Home() {
           <div className="mt-10 text-center">
             <Link
               to="/register"
-              className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-dark-900 font-semibold px-7 py-3.5 rounded-xl transition-colors"
+              className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 active:scale-[0.99] text-dark-900 font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-green-500/20 transition-all"
             >
               Commencer maintenant
               <ArrowRight className="w-4 h-4" />
@@ -600,29 +647,38 @@ export default function Home() {
       <section id="temoignages" className="py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Témoignages</span>
+            <span className={eyebrow}>
+              <span className="h-px w-6 bg-green-400" />
+              Témoignages
+            </span>
             <h2 className={sectionTitle}>Ils gèrent leur boutique avec MadaStock</h2>
             <p className={sectionSubtitle}>Des commerçants de toute l’île nous font confiance au quotidien.</p>
           </div>
           <div className="mt-14 grid md:grid-cols-3 gap-6">
             {testimonials.map((t) => (
-              <div key={t.name} className="bg-white border border-slate-200 rounded-2xl p-7">
+              <figure
+                key={t.name}
+                className="relative bg-white border border-slate-200 rounded-2xl p-7 flex flex-col h-full hover:border-green-200 hover:shadow-lg hover:shadow-green-900/[0.05] transition-all"
+              >
+                <span className="pointer-events-none absolute right-5 top-3 text-6xl leading-none font-serif text-green-100 select-none">
+                  &rdquo;
+                </span>
                 <div className="flex gap-1 text-amber-400">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-current" />
                   ))}
                 </div>
-                <p className="mt-4 text-slate-700 leading-relaxed">« {t.text} »</p>
-                <div className="mt-6 flex items-center gap-3">
-                  <span className="w-11 h-11 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-sm">
+                <blockquote className="mt-4 text-slate-700 leading-relaxed flex-1">{t.text}</blockquote>
+                <figcaption className="mt-6 pt-5 border-t border-slate-100 flex items-center gap-3">
+                  <span className="w-11 h-11 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
                     {t.initials}
                   </span>
-                  <div>
-                    <p className="font-semibold text-dark-900 text-sm">{t.name}</p>
+                  <div className="min-w-0">
+                    <p className="font-bold text-dark-900 text-sm">{t.name}</p>
                     <p className="text-xs text-slate-500">{t.role}</p>
                   </div>
-                </div>
-              </div>
+                </figcaption>
+              </figure>
             ))}
           </div>
         </div>
@@ -632,14 +688,17 @@ export default function Home() {
       <section id="tarifs" className="py-20 lg:py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">Tarifs</span>
+            <span className={eyebrow}>
+              <span className="h-px w-6 bg-green-400" />
+              Tarifs
+            </span>
             <h2 className={sectionTitle}>Des prix simples et transparents</h2>
             <p className={sectionSubtitle}>
               Commencez gratuitement, puis choisissez le plan adapté à la taille de votre activité.
             </p>
           </div>
-          <div className="mt-14 grid sm:grid-cols-2 xl:grid-cols-5 gap-6 items-start">
-            {(priceCards.length > 0 ? priceCards : Array.from({ length: 5 }, () => null)).map((p, i) =>
+          <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
+            {(standardPlans.length > 0 ? standardPlans : Array.from({ length: 4 }, () => null)).map((p, i) =>
               !p ? (
                 <div key={`skeleton-${i}`} className="rounded-2xl bg-white border border-slate-200 p-7 animate-pulse">
                   <div className="h-4 w-20 bg-slate-200 rounded" />
@@ -653,14 +712,14 @@ export default function Home() {
               ) : (
                 <div
                   key={p.key}
-                  className={`relative rounded-2xl p-7 ${
+                  className={`relative flex flex-col h-full rounded-2xl p-6 ${
                     p.highlighted
-                      ? 'bg-dark-900 text-white shadow-2xl shadow-dark-900/30 md:-mt-4 md:mb-4'
-                      : 'bg-white border border-slate-200'
-                  }`}
+                      ? 'bg-dark-900 text-white shadow-2xl shadow-dark-900/30 lg:-my-3'
+                      : 'bg-white border border-slate-200 hover:border-green-300 hover:shadow-lg hover:shadow-green-900/[0.05]'
+                  } transition-shadow`}
                 >
                   {p.highlighted && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-dark-900 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-dark-900 text-[10px] font-extrabold tracking-wider px-3 py-1 rounded-full whitespace-nowrap shadow">
                       LE PLUS POPULAIRE
                     </span>
                   )}
@@ -670,9 +729,9 @@ export default function Home() {
                     <span className={`text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.period}</span>
                   </div>
                   <p className={`mt-2 text-sm ${p.highlighted ? 'text-slate-400' : 'text-slate-500'}`}>{p.description}</p>
-                  <ul className="mt-6 space-y-3">
+                  <ul className="mt-6 flex-1 space-y-2.5">
                     {p.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5 text-sm">
+                      <li key={f} className="flex items-start gap-2.5 text-[13px]">
                         <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${p.highlighted ? 'text-green-400' : 'text-green-600'}`} />
                         <span className={p.highlighted ? 'text-slate-200' : 'text-slate-600'}>{f}</span>
                       </li>
@@ -681,10 +740,10 @@ export default function Home() {
                   {(p.ctaHref.startsWith('mailto:') ? (
                     <a
                       href={p.ctaHref}
-                      className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
+                      className={`mt-6 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
                         p.highlighted
                           ? 'bg-green-500 hover:bg-green-400 text-dark-900'
-                          : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
                       }`}
                     >
                       {p.cta}
@@ -693,10 +752,10 @@ export default function Home() {
                   ) : (
                     <Link
                       to={p.ctaHref}
-                      className={`mt-8 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
+                      className={`mt-6 flex items-center justify-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-colors ${
                         p.highlighted
                           ? 'bg-green-500 hover:bg-green-400 text-dark-900'
-                          : 'border border-slate-300 hover:border-green-500 hover:text-green-600 text-dark-900'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
                       }`}
                     >
                       {p.cta}
@@ -707,6 +766,38 @@ export default function Home() {
               )
             )}
           </div>
+
+          {/* L'offre Entreprise est un bandeau large : en carte comme les autres
+              elle serait trop étroite pour afficher « Pour les réseaux et les
+              besoins sur mesure » sans casser la mise en page. */}
+          {enterprisePlan && (
+            <div className="mt-6 flex flex-col gap-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-extrabold text-dark-900">{enterprisePlan.name}</h3>
+                  <span className="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-green-700">
+                    Sur devis
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">{enterprisePlan.description}</p>
+                <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+                  {enterprisePlan.features.map((f) => (
+                    <li key={f} className="flex items-center gap-1.5 text-[13px] text-slate-600">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <a
+                href={enterprisePlan.ctaHref}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-dark-900 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-dark-800"
+              >
+                {enterprisePlan.cta}
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+          )}
         </div>
       </section>
 
@@ -714,20 +805,33 @@ export default function Home() {
       <section id="faq" className="py-20 lg:py-24">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <span className="text-green-600 font-semibold text-sm uppercase tracking-wider">FAQ</span>
-            <h2 className="mt-3 text-3xl md:text-4xl font-bold tracking-tight text-dark-900">Questions fréquentes</h2>
+            <span className={eyebrow}>
+              <span className="h-px w-6 bg-green-400" />
+              FAQ
+            </span>
+            <h2 className={`mt-4 ${sectionTitle}`}>Questions fréquentes</h2>
           </div>
           <div className="mt-10 space-y-3">
             {faqs.map((f, i) => (
-              <div key={f.question} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div
+                key={f.question}
+                className={`overflow-hidden rounded-xl border bg-white transition-colors ${
+                  openFaq === i ? 'border-green-300 bg-green-50/30' : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  aria-expanded={openFaq === i}
                   className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
                 >
-                  <span className="font-medium text-dark-900 text-sm md:text-base">{f.question}</span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-slate-400 transition-transform shrink-0 ${openFaq === i ? 'rotate-180' : ''}`}
-                  />
+                  <span className="font-semibold text-dark-900 text-sm md:text-base">{f.question}</span>
+                  <span
+                    className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      openFaq === i ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${openFaq === i ? 'rotate-180' : ''}`} />
+                  </span>
                 </button>
                 {openFaq === i && (
                   <p className="px-5 pb-5 text-sm text-slate-600 leading-relaxed">{f.answer}</p>
@@ -749,7 +853,7 @@ export default function Home() {
                   'radial-gradient(400px circle at 10% 0%, rgba(255,255,255,0.15), transparent 60%), radial-gradient(400px circle at 90% 100%, rgba(255,255,255,0.12), transparent 60%)',
               }}
             />
-            <h2 className="relative text-3xl md:text-4xl font-bold tracking-tight text-white">
+            <h2 className="relative text-3xl md:text-4xl font-extrabold tracking-tight text-white text-balance">
               Prêt à gérer votre boutique comme un pro ?
             </h2>
             <p className="relative mt-3 text-green-100 max-w-xl mx-auto">
@@ -769,6 +873,12 @@ export default function Home() {
                 J’ai déjà un compte
               </Link>
             </div>
+            <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
+              <span className="text-sm text-green-100/80">Paiement.accepté&nbsp;:</span>
+              {MOBILE_MONEY_OPERATORS.map((operator) => (
+                <MobileMoneyLogo key={operator} operator={operator} compact className="bg-white" />
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -778,11 +888,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid gap-10 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center overflow-hidden shadow-sm shadow-red-600/30">
-                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain p-0.5" />
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center overflow-hidden shadow-md shadow-green-600/25">
+                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain p-1" />
               </span>
-              <span className="text-xl font-bold tracking-tight text-white">
-                Mada<span className="text-red-400">Stock</span>
+              <span className="text-xl font-extrabold tracking-tight text-white">
+                Mada<span className="text-green-400">Stock</span>
               </span>
             </div>
             <p className="mt-4 text-sm text-slate-400 leading-relaxed">

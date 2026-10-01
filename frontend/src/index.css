@@ -7,6 +7,11 @@
     @apply border-slate-200;
   }
 
+  html {
+    /* Les liens d'ancre du landing defilent en douceur au lieu de sauter. */
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
   }
