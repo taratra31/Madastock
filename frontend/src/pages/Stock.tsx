@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import api from '../lib/api';
 import { formatAr, formatNumber, formatDate, formatDateTime } from '../lib/format';
 import { usePermissions } from '../lib/permissions';
+import BarcodeScanner from '../components/BarcodeScanner';
 import { Badge, Button, Card, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Select, ErrorMessage } from '../components/ui';
 
 interface Warehouse {
@@ -54,6 +55,7 @@ interface ProductOption {
   id: string;
   name: string;
   sku: string | null;
+  barcode?: string | null;
 }
 
 interface Movement {
@@ -435,6 +437,23 @@ export default function Stock() {
         <div className="flex-1 w-full">
           <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un produit..." />
         </div>
+        <BarcodeScanner
+          label="Scanner"
+          onScan={(code) => {
+            const hit = (products ?? []).find(
+              (p) =>
+                (p.barcode ?? '').toLowerCase() === code.toLowerCase() ||
+                (p.sku ?? '').toLowerCase() === code.toLowerCase(),
+            );
+            if (hit) {
+              openAdjust('IN', hit.id);
+            } else {
+              setSearch(code);
+              openAdjust('IN');
+              toast.error(`Aucun produit pour le code ${code} : choisissez-le dans la liste`);
+            }
+          }}
+        />
         <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className="sm:w-56">
           <option value="">Tous les entrepôts</option>
           {(warehouses ?? []).filter((w) => w.isActive).map((w) => (

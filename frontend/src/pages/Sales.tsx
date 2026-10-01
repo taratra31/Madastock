@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import api from '../lib/api';
 import { formatAr, formatNumber } from '../lib/format';
 import { paymentMethodLabels } from '../lib/labels';
+import BarcodeScanner from '../components/BarcodeScanner';
 import { Badge, Button, Card, EmptyState, ErrorMessage, Field, Input, Loading, Modal, PageHeader, SearchInput, Select } from '../components/ui';
 
 interface PosProduct {
@@ -122,10 +123,15 @@ export default function Sales() {
 
   const removeLine = (productId: string) => setCart((prev) => prev.filter((l) => l.productId !== productId));
 
-  const handleBarcode = (e: React.FormEvent) => {
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const code = barcode.trim();
     if (!code) return;
+    void findAndAdd(code, false);
+  };
+
+  /** Appelé par le scanner : ajoute directement au panier. */
+  const findAndAdd = async (code: string, fromScanner: boolean) => {
     const list = products?.data ?? [];
     const hit = list.find((p) => (p.barcode ?? '').toLowerCase() === code.toLowerCase());
     if (hit) {
@@ -133,17 +139,24 @@ export default function Sales() {
       setBarcode('');
       return;
     }
-    api.get('/products', { params: { search: code, limit: 5 } }).then((res) => {
+    try {
+      const res = await api.get('/products', { params: { search: code, limit: 5 } });
       const found = (res.data.data as PosProduct[]).find(
-        (p) => (p.barcode ?? '').toLowerCase() === code.toLowerCase() || (p.sku ?? '').toLowerCase() === code.toLowerCase()
+        (p) =>
+          (p.barcode ?? '').toLowerCase() === code.toLowerCase() ||
+          (p.sku ?? '').toLowerCase() === code.toLowerCase(),
       );
       if (found) {
         addToCart(found);
         setBarcode('');
       } else {
-        toast.error('Aucun produit trouvé');
+        toast.error(`Aucun produit pour le code ${code}`);
       }
-    });
+    } catch {
+      toast.error('Recherche impossible');
+    } finally {
+      if (fromScanner) setBarcode('');
+    }
   };
 
   const handleCheckout = (e: React.FormEvent) => {
@@ -179,7 +192,7 @@ export default function Sales() {
         {/* Catalogue / produits */}
         <div className="xl:col-span-3 space-y-4">
           <Card className="p-4">
-            <form onSubmit={handleBarcode} className="flex flex-col sm:flex-row gap-3">
+            <form onSubmit={handleBarcodeSubmit} className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <SearchInput value={search} onChange={setSearch} placeholder="Rechercher : nom, SKU..." />
               </div>
@@ -191,6 +204,7 @@ export default function Sales() {
                   placeholder="Scanner le code-barres puis Entrée"
                   className="font-mono"
                 />
+                <BarcodeScanner onScan={(code) => void findAndAdd(code, true)} />
               </div>
             </form>
           </Card>
