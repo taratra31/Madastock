@@ -14,6 +14,22 @@ import { getSubscriptionState, nextPeriod, planDurationDays } from './subscripti
 
 type PaymentRecord = Awaited<ReturnType<typeof prisma.payment.findUnique>>;
 
+/** Montant minimum accepté par le prestataire de paiement. */
+export const MIN_PAYMENT_AR = 25_000;
+
+/**
+ * Délai au-delà duquel un paiement resté PENDING n'est plus considered
+ * « en cours » : on le classe sans suite (aucun appel automatique au
+ * prestataire) et on laisse le client vérifier manuellement.
+ */
+export const PENDING_PAYMENT_MINUTES = 20;
+
+/** Un PENDING plus vieux que ce seuil est considéré comme abandonné. */
+export function isPaymentStale(order: { createdAt: Date | string }, now = new Date()): boolean {
+  const created = new Date(order.createdAt).getTime();
+  return now.getTime() - created > PENDING_PAYMENT_MINUTES * 60_000;
+}
+
 function log(action: string, detail = ''): void {
   console.log(`[${action}] ${detail}`.trimEnd());
 }
@@ -39,7 +55,20 @@ export async function getOverview(storeId: string) {
   });
   // Compte à rebours en jours : c'est ce que l'interface affiche (« J-12 »).
   const state = await getSubscriptionState(storeId);
-  return { billingExempt: !!store?.billingExempt, subscription, subscriptionState: state, plans, orders };
+  // `stale` permet à l'interface d'arrêter d'interroger Ariari pour un
+  // paiement abandonné : après 20 min, seul le client peut encore le valider.
+  const enrichedOrders = orders.map((order) => ({
+    ...order,
+    isStale: order.status === 'PENDING' && isPaymentStale(order),
+  }));
+  return {
+    billingExempt: !!store?.billingExempt,
+    subscription,
+    subscriptionState: state,
+    plans,
+    orders: enrichedOrders,
+    minPaymentAr: MIN_PAYMENT_AR,
+  };
 }
 
 export async function createCheckout(storeId: string, userId: string, planId: string) {
@@ -53,11 +82,20 @@ export async function createCheckout(storeId: string, userId: string, planId: st
   }
 
   const plan = await prisma.plan.findUnique({ where: { id: planId } });
-  if (!plan || !plan.isActive) throw badRequest('Offre introuvable');
+  if (!plan || !plan.isActive) throw notFound('Offre introuvable');
   if (Number(plan.priceAr) <= 0) throw badRequest('Cette offre est gratuite, aucun paiement nécessaire');
 
   // Le montant vient TOUJOURS de la base de données, jamais du frontend.
   const amount = Math.round(Number(plan.priceAr));
+  // En dessous du minimum, Ariari refuse (ou rend une confirmation ambiguë) :
+  // on coupe avant de créer une commande qui ne pourra jamais être honorée.
+  if (amount < MIN_PAYMENT_AR) {
+    throw badRequest(
+      `Le montant minimum de paiement est de ${MIN_PAYMENT_AR.toLocaleString('fr-FR')} Ar. ` +
+        `Cette offre coûte ${amount.toLocaleString('fr-FR')} Ar : choisissez une formule supérieure.`,
+    );
+  }
+
   const merchantReference = `SUB-${userId.slice(0, 8)}-${randomUUID()}`;
   const webhookUrl = env.ARIARI_WEBHOOK_URL || `${env.FRONTEND_URL}/api/webhooks/ariari`;
 

@@ -45,11 +45,15 @@ export interface OrderSummary {
   provider: string | null;
   createdAt: string;
   paidAt: string | null;
+  /** true si le paiement est PENDING depuis plus de 20 min (aucune relance auto). */
+  isStale?: boolean;
   plan: PlanSummary;
 }
 
 export interface BillingData {
   billingExempt?: boolean;
+  /** Montant minimum accepté par le prestataire de paiement. */
+  minPaymentAr?: number;
   subscription: {
     id: string;
     status: string;

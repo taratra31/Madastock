@@ -4,6 +4,8 @@ import app from '../src/app';
 import { extractPaymentId } from '../src/services/ariari.service';
 import * as billingService from '../src/services/billing.service';
 
+const { MIN_PAYMENT_AR } = billingService;
+
 const prismaMock = vi.hoisted(() => ({
   payment: {
     findUnique: vi.fn(),
@@ -11,7 +13,7 @@ const prismaMock = vi.hoisted(() => ({
     create: vi.fn(),
     update: vi.fn(),
   },
-  plan: { findUnique: vi.fn() },
+  plan: { findUnique: vi.fn(), findMany: vi.fn() },
   store: { findUnique: vi.fn() },
   subscription: { findUnique: vi.fn(), upsert: vi.fn() },
   storeMember: { findMany: vi.fn() },
@@ -434,6 +436,59 @@ describe('Création de paiement (createCheckout)', () => {
     expect(prismaMock.payment.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) })
     );
+  });
+
+  it('refuse une commande sous le montant minimum (25 000 Ar)', async () => {
+    prismaMock.plan.findUnique.mockResolvedValue({ ...activePlan, priceAr: '10000' });
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', email: null, billingExempt: false });
+
+    await expect(billingService.createCheckout('store-1', 'user-1', 'plan-1')).rejects.toThrow(/minimum/i);
+    // aucune commande parasite n'est créée chez le prestataire
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('accepte exactement le montant minimum', async () => {
+    prismaMock.plan.findUnique.mockResolvedValue({ ...activePlan, priceAr: String(MIN_PAYMENT_AR) });
+    prismaMock.store.findUnique.mockResolvedValue({ id: 'store-1', name: 'Mounaya', email: null, billingExempt: false });
+    prismaMock.payment.create.mockResolvedValue({ id: 'pay-1', merchantReference: 'SUB-user-1-abc' });
+    prismaMock.payment.update.mockResolvedValue({});
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(ariariApiResponse(ariariPayment({ amount: MIN_PAYMENT_AR, status: 'pending' }))),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await billingService.createCheckout('store-1', 'user-1', 'plan-1');
+    expect(result.paymentLink).toBeTruthy();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).amount).toBe(MIN_PAYMENT_AR);
+  });
+});
+
+describe('Historique des paiements', () => {
+  it('marque un PENDING de plus de 20 minutes comme sans suite', () => {
+    expect(billingService.isPaymentStale({ createdAt: new Date(Date.now() - 21 * 60_000) })).toBe(true);
+    expect(billingService.isPaymentStale({ createdAt: new Date(Date.now() - 5 * 60_000) })).toBe(false);
+  });
+
+  it('getOverview expose le minimum de paiement et le drapeau isStale', async () => {
+    prismaMock.store.findUnique.mockResolvedValue({ billingExempt: false });
+    prismaMock.subscription.findUnique.mockResolvedValue(null);
+    prismaMock.plan.findMany.mockResolvedValue([activePlan]);
+    prismaMock.payment.findMany.mockResolvedValue([
+      { id: 'p-old', status: 'PENDING', createdAt: new Date(Date.now() - 30 * 60_000), plan: activePlan },
+      { id: 'p-new', status: 'PENDING', createdAt: new Date(Date.now() - 60_000), plan: activePlan },
+      { id: 'p-paid', status: 'SUCCESS', createdAt: new Date(Date.now() - 2 * 60_000), plan: activePlan },
+    ]);
+
+    const overview = await billingService.getOverview('store-1');
+
+    expect(overview.minPaymentAr).toBe(MIN_PAYMENT_AR);
+    expect(overview.orders.find((o) => o.id === 'p-old')?.isStale).toBe(true);
+    expect(overview.orders.find((o) => o.id === 'p-new')?.isStale).toBe(false);
+    // un paiement payé n'est jamais « stale » : il reste payé définitivement
+    expect(overview.orders.find((o) => o.id === 'p-paid')?.isStale).toBe(false);
   });
 });
 

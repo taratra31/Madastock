@@ -18,13 +18,13 @@ import {
   CircleDollarSign,
   ArrowUpRight,
   LifeBuoy,
-  Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { useSubscription } from '../lib/subscription';
 import { formatNumber, formatDate } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ErrorMessage, Loading, PageHeader, cn } from '../components/ui';
+import { MOBILE_MONEY_OPERATORS, MobileMoneyLogo } from '../components/MobileMoneyLogo';
 
 interface Plan {
   id: string;
@@ -61,6 +61,12 @@ const statusConfig: Record<string, { label: string; badge: string; dot: string; 
   },
 };
 
+/** Montant minimum imposé par le prestataire (source : serveur via /billing). */
+const MIN_PAYMENT_AR = 25_000;
+/** Durée pendant laquelle on interroge Ariari tout seul pour un PENDING. */
+const PENDING_AUTO_CHECK_MINUTES = 20;
+const PENDING_POLL_MS = 15_000;
+
 const providerConfig: Record<string, { label: string; short: string; cls: string }> = {
   ARIARI: { label: 'Mobile Money (Ariari)', short: 'Ariari', cls: 'bg-slate-100 text-slate-700' },
   MVOLA: { label: 'MVola', short: 'MVola', cls: 'bg-violet-50 text-violet-700' },
@@ -96,6 +102,39 @@ export default function Billing() {
   const { data, isLoading, error, platformAdmin } = useSubscription();
 
   const currentPlanId = data?.subscription?.plan.id;
+  const minPayment = data?.minPaymentAr ?? MIN_PAYMENT_AR;
+
+  // Un paiement « En attente » se met à jour tout seul pendant 20 minutes
+  // (le temps habitual d'une confirmation mobile money). Passé ce délai on
+  // arrête d'interroger le prestataire : seul le bouton « Vérifier » reste.
+  // Un paiement « Payé » n'est jamais re-contrôlé.
+  useEffect(() => {
+    const pending = (data?.orders ?? []).filter((o) => o.status === 'PENDING');
+    if (pending.length === 0) return;
+
+    const fresh = pending.filter((o) => Date.now() - new Date(o.createdAt).getTime() < PENDING_AUTO_CHECK_MINUTES * 60_000);
+    if (fresh.length === 0) return;
+
+    const ids = fresh.map((o) => o.id).join(',');
+    const timer = setInterval(() => {
+      void (async () => {
+        for (const id of ids.split(',')) {
+          try {
+            const res = await api.post(`/billing/${id}/refresh`);
+            if ((res.data.order?.status as string) !== 'PENDING') {
+              const label = res.data.order?.status === 'SUCCESS' ? 'Payé' : 'Échec';
+              toast.success(`Paiement ${label.toLowerCase()} : votre abonnement est à jour.`);
+            }
+          } catch {
+            // réseau indisponible : on retentera au cycle suivant
+          }
+        }
+        queryClient.invalidateQueries({ queryKey: ['billing'] });
+      })();
+    }, PENDING_POLL_MS);
+
+    return () => clearInterval(timer);
+  }, [data?.orders, queryClient]);
 
   // Confirmation automatique au retour de la page de paiement (redirectSuccess / redirectFailure).
   useEffect(() => {
@@ -363,6 +402,9 @@ export default function Billing() {
                 {data.plans.map((plan) => {
                   const isCurrent = plan.id === currentPlanId;
                   const free = Number(plan.priceAr) <= 0;
+                  // Le prestataire refuse les montants trop bas : on désactive
+                  // l'offre au lieu de laisser créer une commande impossible.
+                  const belowMinimum = !free && Number(plan.priceAr) < minPayment;
                   return (
                     <div
                       key={plan.id}
@@ -407,7 +449,7 @@ export default function Billing() {
                         <Button
                           className="w-full"
                           variant={isCurrent ? 'outline' : 'primary'}
-                          disabled={isCurrent || free || isMutating || isConfirming}
+                          disabled={isCurrent || free || belowMinimum || isMutating || isConfirming}
                           onClick={() => checkoutMutation.mutate(plan.id)}
                         >
                           {isCurrent ? (
@@ -416,6 +458,8 @@ export default function Billing() {
                             </>
                           ) : free ? (
                             'Découvrir'
+                          ) : belowMinimum ? (
+                            `Minimum ${formatNumber(minPayment)} Ar`
                           ) : sub && Number(plan.priceAr) > Number(sub.priceAr) ? (
                             <>
                               Passer à {planLabel[plan.name] ?? plan.name} <ArrowUpRight className="w-4 h-4" />
@@ -450,20 +494,8 @@ export default function Billing() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {[
-                      { label: 'MVola', cls: 'bg-violet-100 text-violet-700' },
-                      { label: 'Orange Money', cls: 'bg-orange-100 text-orange-700' },
-                      { label: 'Airtel Money', cls: 'bg-red-100 text-red-600' },
-                    ].map((m) => (
-                      <span
-                        key={m.label}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5',
-                          m.cls,
-                        )}
-                      >
-                        <Smartphone className="w-3.5 h-3.5" /> {m.label}
-                      </span>
+                    {MOBILE_MONEY_OPERATORS.map((operator) => (
+                      <MobileMoneyLogo key={operator} operator={operator} />
                     ))}
                   </div>
                 </div>
@@ -497,6 +529,14 @@ export default function Billing() {
                   };
                   const Icon = cfg.icon;
                   const prov = order.provider ? providerConfig[order.provider] : null;
+                  const stale =
+                    order.status === 'PENDING' &&
+                    (order.isStale ??
+                      Date.now() - new Date(order.createdAt).getTime() > PENDING_AUTO_CHECK_MINUTES * 60_000);
+                  const minutesLeft = Math.max(
+                    0,
+                    Math.ceil((PENDING_AUTO_CHECK_MINUTES * 60_000 - (Date.now() - new Date(order.createdAt).getTime())) / 60_000),
+                  );
                   return (
                     <div key={order.id} className="px-5 py-4 flex flex-wrap items-center gap-3">
                       <span className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 shrink-0">
@@ -529,10 +569,15 @@ export default function Billing() {
                       </div>
                       {order.status === 'PENDING' ? (
                         <div className="flex items-center gap-2">
-                          <Badge className={cn('ring-1', cfg.badge)}>
-                            <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot)} />
-                            {cfg.label}
+                          <Badge className={cn('ring-1', stale ? 'bg-slate-100 text-slate-600 ring-slate-200' : cfg.badge)}>
+                            <span className={cn('w-1.5 h-1.5 rounded-full', stale ? 'bg-slate-400' : cfg.dot)} />
+                            {stale ? 'Sans suite' : cfg.label}
                           </Badge>
+                          {!stale && (
+                            <span className="text-xs text-slate-400 hidden sm:inline">
+                              {minutesLeft} min restantes
+                            </span>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"

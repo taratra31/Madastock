@@ -134,14 +134,20 @@ async function sendLowStockEmails(
       const email = member.user.email;
       if (!email) continue;
 
-      // Un envoi par destinataire et par jour : si l'insertion passe, on
-      // envoie. La contrainte unique protège si deux CRF se croisent.
+      // Un envoi par destinataire et par jour. On teste avant d'écrire : sinon
+      // Prisma journalise une erreur P2002 à chaque passage du cron.
+      const alreadySent = await prisma.emailDispatch.findUnique({
+        where: { storeId_email_kind_periodKey: { storeId, email, kind: 'LOW_STOCK', periodKey } },
+        select: { id: true },
+      });
+      if (alreadySent) continue;
+
       try {
         await prisma.emailDispatch.create({
           data: { storeId, email, kind: 'LOW_STOCK', periodKey },
         });
       } catch {
-        continue; // déjà envoyé aujourd'hui
+        continue; // envoi concurrent : la contrainte unique a fait son travail
       }
 
       try {

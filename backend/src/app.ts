@@ -42,6 +42,12 @@ import * as billingController from './controllers/billing.controller';
 
 const app = express();
 
+// Derrière le proxy Render : sans cela, express-rate-limit voit un
+// X-Forwarded-For incohérent et journalise ERR_ERL_UNEXPECTED_X_FORWARDED_FOR,
+// et l'IP client réelle n'est jamais reconnue.
+app.set('trust proxy', 1);
+
+
 app.use(
   helmet({
     contentSecurityPolicy: {
