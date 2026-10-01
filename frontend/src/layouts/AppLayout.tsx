@@ -33,7 +33,6 @@ import {
   Receipt,
   Tag,
   Banknote,
-  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
@@ -344,7 +343,7 @@ export default function AppLayout() {
           className="w-full mb-2 flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/5 text-emerald-300 ring-1 ring-emerald-500/25 hover:from-emerald-500/25 hover:text-emerald-200 transition-all"
         >
           <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
-            <Sparkles className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4" />
           </span>
           <span className="min-w-0 flex-1 text-left">
             <span className="block text-[13px] font-semibold truncate">Assistant IA</span>

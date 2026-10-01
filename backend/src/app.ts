@@ -38,7 +38,52 @@ import * as billingController from './controllers/billing.controller';
 
 const app = express();
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        // Google Analytics 4 + Google Tag Manager (scripts inline + external)
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://www.googletagmanager.com',
+          'https://www.google-analytics.com',
+          'https://analytics.google.com',
+        ],
+        scriptSrcElem: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://www.googletagmanager.com',
+          'https://www.google-analytics.com',
+          'https://analytics.google.com',
+        ],
+        connectSrc: [
+          "'self'",
+          'https://www.googletagmanager.com',
+          'https://www.google-analytics.com',
+          'https://analytics.google.com',
+          'https://*.analytics.google.com',
+          'https://*.google-analytics.com',
+          'https://*.gstatic.com',
+          'https://*.googleapis.com',
+        ],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://www.googletagmanager.com',
+          'https://www.google-analytics.com',
+          'https://analytics.google.com',
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+  })
+);
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(cookieParser());
 
