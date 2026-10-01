@@ -6,7 +6,10 @@ export async function listProducts(storeId: string, query: {
   categoryId?: string;
   page?: number;
   limit?: number;
+  /** false = on masque les prix d'achat (rôle sans permission « cost.view »). */
+  includeCost?: boolean;
 }) {
+  const includeCost = query.includeCost !== false;
   const page = Math.max(1, query.page ?? 1);
   const limit = Math.min(100, Math.max(1, query.limit ?? 20));
   const skip = (page - 1) * limit;
@@ -54,7 +57,7 @@ export async function listProducts(storeId: string, query: {
     data: paged.map(({ stocks, ...p }) => ({
       ...p,
       totalStock: stocks.reduce((s, st) => s + Number(st.quantityAr) - Number(st.reservedQty), 0),
-      costPriceAr: Number(p.costPriceAr),
+      costPriceAr: includeCost ? Number(p.costPriceAr) : null,
       sellingPriceAr: Number(p.sellingPriceAr),
       wholesalePriceAr: p.wholesalePriceAr ? Number(p.wholesalePriceAr) : null,
     })),
@@ -62,7 +65,11 @@ export async function listProducts(storeId: string, query: {
   };
 }
 
-export async function getProduct(storeId: string, productId: string) {
+export async function getProduct(
+  storeId: string,
+  productId: string,
+  includeCost = true,
+) {
   const product = await prisma.product.findFirst({
     where: { id: productId, storeId, deletedAt: null },
     include: {
@@ -91,7 +98,7 @@ export async function getProduct(storeId: string, productId: string) {
   const { stocks, ...rest } = product;
   return {
     ...rest,
-    costPriceAr: Number(rest.costPriceAr),
+    costPriceAr: includeCost ? Number(rest.costPriceAr) : null,
     sellingPriceAr: Number(rest.sellingPriceAr),
     wholesalePriceAr: rest.wholesalePriceAr ? Number(rest.wholesalePriceAr) : null,
     stocks: stocks.map(s => ({
@@ -104,6 +111,7 @@ export async function getProduct(storeId: string, productId: string) {
     totalStock: stocks.reduce((s, st) => s + Number(st.quantityAr) - Number(st.reservedQty), 0),
     variants: rest.variants.map(v => ({
       ...v,
+      costPriceAr: includeCost && v.costPriceAr ? Number(v.costPriceAr) : null,
       totalStock: v.stocks.reduce((s, st) => s + Number(st.quantityAr), 0),
     })),
   };

@@ -16,10 +16,9 @@ export const listStock = asyncHandler(async (req: Request, res: Response) => {
 
 export const adjustStock = asyncHandler(async (req: Request, res: Response) => {
   if (!req.store) throw badRequest('Contexte boutique manquant');
-  if (!req.store.canManageAll && req.store.role !== 'OWNER' && req.store.role !== 'ADMIN') {
-    res.status(403).json({ error: 'Droits insuffisants' });
-    return;
-  }
+  // Le droit d'écrire le stock est contrôlé par `requirePermission(STOCK_WRITE)`
+  // sur la route (l'ancien test en dur OWNER/ADMIN bloquait à tort les
+  // gestionnaires de stock et les managers).
   const stock = await stockService.adjustStock(req.store.id, req.body);
   res.json(stock);
 });

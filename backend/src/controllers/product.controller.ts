@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { badRequest } from '../utils/httpError';
+import { canViewCost } from '../middleware/rbac';
 import * as productService from '../services/product.service';
 
 export const listProducts = asyncHandler(async (req: Request, res: Response) => {
@@ -10,13 +11,18 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     categoryId: req.query.categoryId as string | undefined,
     page: req.query.page ? Number(req.query.page) : undefined,
     limit: req.query.limit ? Number(req.query.limit) : undefined,
+    includeCost: canViewCost(req),
   });
   res.json(result);
 });
 
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
   if (!req.store) throw badRequest('Contexte boutique manquant');
-  const product = await productService.getProduct(req.store.id, req.params.productId);
+  const product = await productService.getProduct(
+    req.store.id,
+    req.params.productId,
+    canViewCost(req),
+  );
   res.json(product);
 });
 

@@ -37,6 +37,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
 import { useSubscription } from '../lib/subscription';
+import { NAV_PERMISSION, usePermissions } from '../lib/permissions';
 import api from '../lib/api';
 import { roleLabels, sectorLabels } from '../lib/labels';
 import NotificationBell from '../components/NotificationBell';
@@ -185,6 +186,7 @@ export default function AppLayout() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const { memberships, currentStore, setCurrentStore, selectFirstStore } = useStores();
   const { isLocked, planName } = useSubscription();
+  const { can, permissions } = usePermissions();
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -236,13 +238,19 @@ export default function AppLayout() {
     const sections = navForSector(currentStore?.sector)
       .map((section) => ({
         ...section,
-        items: section.items.filter(
-          (item) => !(item.to === '/settings' || item.to === '/billing') || canManage,
-        ),
+        items: section.items.filter((item) => {
+          // Masqué si le rôle n'a pas la permission requise (le serveur
+          // refuse de toute façon : c'est juste pour ne pas proposed
+          // un écran que l'utilisateur ne peut pas ouvrir).
+          const path = item.to.split('?')[0];
+          const need = NAV_PERMISSION[path];
+          if (need && !can(need)) return false;
+          return !((item.to === '/settings' || item.to === '/billing') && !canManage);
+        }),
       }))
       .filter((section) => section.items.length > 0);
     return user?.isSuperAdmin ? [...sections, ADMIN_SECTION] : sections;
-  }, [currentStore?.sector, canManage, user?.isSuperAdmin]);
+  }, [currentStore?.sector, canManage, user?.isSuperAdmin, permissions]);
 
   useEffect(() => setUserMenuOpen(false), [location.pathname]);
 
