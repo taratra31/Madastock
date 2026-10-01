@@ -36,6 +36,7 @@ import {
   Receipt,
   Tag,
   Banknote,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useStores, type Membership } from '../lib/store';
@@ -43,6 +44,7 @@ import { useSubscription } from '../lib/subscription';
 import { NAV_PERMISSION, usePermissions } from '../lib/permissions';
 import api from '../lib/api';
 import { roleLabels, sectorLabels } from '../lib/labels';
+import { cn } from '../components/ui';
 import NotificationBell from '../components/NotificationBell';
 import PremiumModal from '../components/PremiumModal';
 import SubscriptionLock from '../components/SubscriptionLock';
@@ -264,6 +266,50 @@ export default function AppLayout() {
 
   useEffect(() => setUserMenuOpen(false), [location.pathname]);
 
+  // --- Sidebar : recherche de page + sections repliables -------------------
+  const [navQuery, setNavQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('madastock.nav.collapsed');
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleSection = (title: string) =>
+    setCollapsed((prev) => {
+      const next = prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title];
+      try {
+        localStorage.setItem('madastock.nav.collapsed', JSON.stringify(next));
+      } catch {
+        // stockage indisponible (navigation privée) : l'état reste en mémoire
+      }
+      return next;
+    });
+
+  const filteredSections = useMemo(() => {
+    const query = navQuery.trim().toLowerCase();
+    if (!query) return navSections;
+    return navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => item.label.toLowerCase().includes(query)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [navSections, navQuery]);
+
+  // Une section contenant la page courante reste dépliée même si on la replie.
+  const isSectionOpen = (section: NavSection) => {
+    if (navQuery.trim()) return true;
+    if (section.items.some((i) => location.pathname === i.to || location.pathname.startsWith(`${i.to}/`))) {
+      return true;
+    }
+    return !collapsed.includes(section.title);
+  };
+
+  const totalNavItems = navSections.reduce((sum, s) => sum + s.items.length, 0);
+
   const currentLabel = useMemo(() => {
     const all = navSections
       .flatMap((s) => s.items)
@@ -319,55 +365,115 @@ export default function AppLayout() {
         </button>
       </div>
 
+      {/* Recherche de page : au-dessus de la zone qui défile. */}
+      <div className="shrink-0 px-3 pt-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            value={navQuery}
+            onChange={(e) => setNavQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setNavQuery('');
+            }}
+            placeholder="Rechercher une page…"
+            aria-label="Rechercher une page dans le menu"
+            className="w-full rounded-lg border border-white/5 bg-white/[0.04] py-1.5 pl-8 pr-7 text-[12.5px] text-white placeholder:text-slate-500 outline-none transition focus:border-emerald-500/40 focus:bg-white/[0.07]"
+          />
+          {navQuery ? (
+            <button
+              onClick={() => setNavQuery('')}
+              title="Effacer"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 transition hover:bg-white/10 hover:text-slate-300"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-white/10 px-1 text-[10px] font-medium text-slate-500">
+              {totalNavItems}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Zone de navigation : elle seule défile, l'en-tête et le compte restent fixes. */}
       <nav
         aria-label="Navigation principale"
         className="scrollbar-slim flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3"
         style={{ scrollbarGutter: 'stable' }}
       >
-        <div className="space-y-5 pb-2">
-          {navSections.map((section) => (
-            <div key={section.title}>
-              <p className="px-3 mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                <span className="h-px flex-1 bg-gradient-to-r from-slate-700 to-transparent" />
-                {section.title}
-              </p>
-              <div className="space-y-0.5">
-                {section.items.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/dashboard'}
-                    onClick={() => setSidebarOpen(false)}
-                    className={({ isActive }) =>
-                      `group relative flex items-center gap-3 pl-3 pr-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
-                        isActive
-                          ? 'bg-gradient-to-r from-emerald-500/25 via-emerald-500/10 to-transparent text-white shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]'
-                          : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
-                      }`
-                    }
+        {filteredSections.length === 0 ? (
+          <p className="px-3 py-6 text-center text-[12.5px] text-slate-500">
+            Aucun résultat pour « {navQuery} ».
+          </p>
+        ) : (
+          <div className="space-y-1 pb-2">
+            {filteredSections.map((section) => {
+              const open = isSectionOpen(section);
+              return (
+                <div key={section.title}>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.title)}
+                    aria-expanded={open}
+                    className="group mb-1 flex w-full items-center gap-2 px-3 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 transition hover:text-slate-300"
                   >
-                    {({ isActive }) => (
-                      <>
-                        <span
-                          className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-emerald-400 transition-all duration-200 ${
-                            isActive ? 'h-5 opacity-100' : 'h-0 opacity-0'
-                          }`}
-                        />
-                        <item.icon
-                          className={`w-[18px] h-[18px] shrink-0 transition-colors duration-150 ${
-                            isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-200'
-                          }`}
-                        />
-                        <span className="truncate">{item.label}</span>
-                      </>
-                    )}
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+                    <ChevronDown
+                      className={cn(
+                        'h-3 w-3 shrink-0 transition-transform duration-200',
+                        open ? 'rotate-0' : '-rotate-90',
+                      )}
+                    />
+                    <span className="flex-1 truncate">{section.title}</span>
+                    <span className="text-[10px] font-normal normal-case tracking-normal text-slate-600 group-hover:text-slate-500">
+                      {section.items.length}
+                    </span>
+                  </button>
+                  {open && (
+                    <div className="space-y-0.5">
+                      {section.items.map((item) => (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.to === '/dashboard'}
+                          onClick={() => {
+                            setSidebarOpen(false);
+                            setNavQuery('');
+                          }}
+                          className={({ isActive }) =>
+                            cn(
+                              'group relative flex items-center gap-3 rounded-lg py-2 pl-3 pr-3 text-[13px] font-medium transition-all duration-150',
+                              isActive
+                                ? 'bg-gradient-to-r from-emerald-500/25 via-emerald-500/10 to-transparent text-white shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]'
+                                : 'text-slate-400 hover:bg-white/[0.04] hover:text-white',
+                            )
+                          }
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <span
+                                className={cn(
+                                  'absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-r-full bg-emerald-400 transition-all duration-200',
+                                  isActive ? 'h-5 opacity-100' : 'h-0 opacity-0',
+                                )}
+                              />
+                              <item.icon
+                                className={cn(
+                                  'h-[18px] w-[18px] shrink-0 transition-colors duration-150',
+                                  isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-200',
+                                )}
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </>
+                          )}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       <div className="shrink-0 border-t border-dark-800/80 bg-dark-900/80 backdrop-blur p-3">
