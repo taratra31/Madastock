@@ -548,9 +548,9 @@ export default function Dashboard() {
                     <p className="text-lg font-bold text-dark-900 leading-tight truncate">
                       {planDisplayName[currentPlan.name] ?? currentPlan.name}
                       <span className="ml-2 text-sm font-semibold text-emerald-600">
-                        {Number(currentPlan.priceAr) <= 0
-                          ? 'Gratuit'
-                          : `${formatNumber(currentPlan.priceAr)} Ar / mois`}
+                          {Number(currentPlan.priceAr) <= 0
+                            ? 'Gratuit à vie'
+                            : `${formatNumber(currentPlan.priceAr)} Ar / mois`}
                       </span>
                     </p>
                   </div>
