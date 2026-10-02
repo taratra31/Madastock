@@ -315,7 +315,7 @@ export default function Dashboard() {
   const planStatusLabel = billingExempt || platformAdmin
     ? 'Accès complet'
     : planState?.isFreePlan
-      ? 'Gratuit à vie'
+      ? 'Essai gratuit (30 jours)'
       : !planState
         ? 'Mode gratuit'
         : planState.isExpired
@@ -549,7 +549,7 @@ export default function Dashboard() {
                       {planDisplayName[currentPlan.name] ?? currentPlan.name}
                       <span className="ml-2 text-sm font-semibold text-emerald-600">
                           {Number(currentPlan.priceAr) <= 0
-                            ? 'Gratuit à vie'
+                            ? 'Gratuit'
                             : `${formatNumber(currentPlan.priceAr)} Ar / mois`}
                       </span>
                     </p>
