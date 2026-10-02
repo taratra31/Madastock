@@ -347,11 +347,11 @@ export default function Billing() {
 
                   <div className="lg:ml-auto flex-1 max-w-sm">
                     {exempt ? (
-                      <p className="text-sm text-slate-500 leading-relaxed">
-                        <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
-                          <CheckCircle2 className="w-4 h-4" /> Abonnement garanti, sans limite de durée.
-                        </span>
-                      </p>
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                          <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+                            <CheckCircle2 className="w-4 h-4" /> Gratuit à vie, sans limite de durée.
+                          </span>
+                        </p>
                     ) : (
                       <>
                         <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
@@ -476,10 +476,10 @@ export default function Billing() {
                       // (« 0 Ar, pour toujours »).
                         <p className="text-sm text-slate-500 leading-relaxed">
                           <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
-                            <CheckCircle2 className="w-4 h-4" /> Offre gratuite, sans limite de durée.
+                            <CheckCircle2 className="w-4 h-4" /> Gratuit à vie, sans limite de durée.
                           </span>
                           <span className="mt-1 block text-xs text-slate-400">
-                            Vous avez accès à l'essentiel pour toujours.
+                            Accès illimité dans le temps, sans échéance.
                           </span>
                         </p>
                     ) : (
