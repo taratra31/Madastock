@@ -293,8 +293,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <a href="#" className="flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center overflow-hidden shadow-md shadow-green-600/25">
-                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain p-1" />
+              <span className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain" />
               </span>
               <span className="text-xl font-extrabold tracking-tight text-dark-900">
                 Mada<span className="text-green-600">Stock</span>
@@ -888,8 +888,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid gap-10 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center overflow-hidden shadow-md shadow-green-600/25">
-                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain p-1" />
+              <span className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+                <img src="/logo-madastock.png" alt="MadaStock" className="w-full h-full object-contain" />
               </span>
               <span className="text-xl font-extrabold tracking-tight text-white">
                 Mada<span className="text-green-400">Stock</span>

@@ -5,22 +5,25 @@ export type MobileMoneyOperator = 'MVOLA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY';
 
 const LOGO: Record<
   MobileMoneyOperator,
-  { src?: string; tint: string; swatch: string; label: string }
+  { src?: string; fallbackSrc?: string; tint: string; swatch: string; label: string }
 > = {
   MVOLA: {
-    src: '/logos/mvola.png',
+    src: '/logos/mvola-alpha.png',
+    fallbackSrc: '/logos/mvola.png',
     tint: 'bg-orange-50 ring-orange-200',
     swatch: 'bg-[#F97316]',
     label: 'MVola',
   },
   ORANGE_MONEY: {
-    src: '/logos/orange-money.png',
+    src: '/logos/orange-money-alpha.png',
+    fallbackSrc: '/logos/orange-money.png',
     tint: 'bg-orange-50 ring-orange-200',
     swatch: 'bg-[#FF7900]',
     label: 'Orange Money',
   },
   AIRTEL_MONEY: {
-    src: '/logos/airtel-money.png',
+    src: '/logos/airtel-money-alpha.png',
+    fallbackSrc: '/logos/airtel-money.png',
     tint: 'bg-red-50 ring-red-200',
     swatch: 'bg-[#E4002B]',
     label: 'Airtel Money',
@@ -32,9 +35,14 @@ const LOGO: Record<
  *
  * Orange Money et Airtel Money utilisent les fichiers officiels déposés dans
  * `frontend/public/logos/` : servis par le même domaine, ils restent
- * compatibles avec la CSP (`img-src 'self'`). Le logo n'est pas étiré : il est
- * borné en hauteur et conservé tel quel (marges transparentes comprises), avec
- * une pastille de couleur en repli si le fichier manque au build.
+ * compatibles avec la CSP (`img-src 'self'`).
+ *
+ * Ces fichiers ont un fond opaque (blanc pour MVola / Airtel, noir pour Orange
+ * Money) : posés dans une pastille colorée, ils affichaient un carré aberrant.
+ * Les variantes `*-alpha.png` sont donc les versions dont le fond a été retiré
+ * (l'original reste disponible en repli si le fichier transformé manque au
+ * build). Le logo n'est pas étiré : borné en hauteur et conservé tel quel, avec
+ * une pastille de couleur en dernier recours.
  */
 export function MobileMoneyLogo({
   operator,
@@ -47,7 +55,9 @@ export function MobileMoneyLogo({
   compact?: boolean;
 }) {
   const conf = LOGO[operator];
-  const [failed, setFailed] = useState(false);
+  // 0 = version transparente, 1 = original, 2 = pastille de couleur.
+  const [stage, setStage] = useState(0);
+  const currentSrc = stage === 0 ? conf.src : conf.fallbackSrc;
 
   return (
     <span
@@ -62,11 +72,11 @@ export function MobileMoneyLogo({
       )}
       title={conf.label}
     >
-      {conf.src && !failed ? (
+      {currentSrc ? (
         <img
-          src={conf.src}
+          src={currentSrc}
           alt={conf.label}
-          onError={() => setFailed(true)}
+          onError={() => setStage((s) => Math.min(s + 1, 2))}
           className={cn(
             'shrink-0 object-contain',
             compact ? 'h-4 max-w-[4rem]' : 'h-5 max-w-[6rem]',
@@ -74,7 +84,7 @@ export function MobileMoneyLogo({
           style={{ width: 'auto' }}
           loading="lazy"
         />
-      ) : conf.src ? (
+      ) : stage >= 2 ? (
         <span className={cn('shrink-0 rounded-md', compact ? 'h-4 w-4' : 'h-5 w-5', conf.swatch)} />
       ) : (
         <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" role="img" aria-label="MVola">
