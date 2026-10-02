@@ -7,12 +7,9 @@ import {
 } from '../src/services/subscription.service';
 
 /**
- * Régression : l'offre gratuite est annoncée « 0 Ar, pour toujours ».
- * Une boutique partait pourtant en essai de 14 jours, puis le cron la
- * passait EXPIRED et toute écriture renvoyait 402 — sans jamais avoir
- * facturé quoi que ce soit.
+ * Offre gratuite : essai limité de 30 jours (non perpétuel).
  */
-describe('Offre gratuite perpétuelle', () => {
+describe('Offre gratuite - essai 30 jours', () => {
   it('détecte les offres gratuites', () => {
     expect(isFreePlan({ priceAr: 0 })).toBe(true);
     expect(isFreePlan({ priceAr: '0' })).toBe(true);
@@ -21,14 +18,15 @@ describe('Offre gratuite perpétuelle', () => {
     expect(isFreePlan(undefined)).toBe(false);
   });
 
-  it('donne une période bien plus longue que l\'essai', () => {
-    expect(FREE_PLAN_DAYS).toBeGreaterThan(TRIAL_DAYS * 100);
+  it('a une durée de 30 jours', () => {
+    expect(FREE_PLAN_DAYS).toBe(30);
   });
 
-  it('n\'expire pas une boutique gratuite même après 100 ans', () => {
+  it('expire après 30 jours (période d\'essai)', () => {
     const created = new Date('2026-01-01T00:00:00.000Z');
     const periodEnd = addDays(created, FREE_PLAN_DAYS);
-    // Bien après n'importe quel essai : la boutique est toujours « vivante ».
-    expect(periodEnd.getTime()).toBeGreaterThan(Date.now());
+    const diffMs = periodEnd.getTime() - created.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    expect(Math.round(diffDays)).toBe(30);
   });
 });

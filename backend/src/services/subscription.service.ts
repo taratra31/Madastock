@@ -5,15 +5,10 @@ import prisma from '../lib/prisma';
 export const TRIAL_DAYS = 14;
 
 /**
- * L'offre gratuite est PERPÉTUELLE.
- *
- * L'offre « Gratuit » est annoncée « 0 Ar, pour toujours » sur le site : elle
- * ne doit donc jamais expirer. Avant, une boutique partait en essai de 14 jours
- * puis le cron la passait EXPIRED, ce qui rendait toute l'application en
- * lecture seule (402 sur chaque écriture) sans jamais avoir rien facturé.
- * Seules les offres payées ont une durée de vie.
+ * Durée d'essai de l'offre gratuite, en jours.
+ * Demande : l'offre gratuite est un essai de 30 jours (non perpétuel).
  */
-export const FREE_PLAN_DAYS = 36500;
+export const FREE_PLAN_DAYS = 30;
 
 /** true si l'offre est gratuite : aucune expiration, aucune alerte. */
 export function isFreePlan(plan: { priceAr?: unknown } | null | undefined): boolean {
@@ -119,7 +114,7 @@ export async function expireDueSubscriptions(now = new Date()): Promise<string[]
       status: { in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] },
       currentPeriodEnd: { lte: now },
       store: { billingExempt: false },
-      // L'offre gratuite n'expire jamais (0 Ar, pour toujours).
+      // L'offre gratuite fait l'objet d'un essai limité (30 jours)
       NOT: { plan: { priceAr: { lte: 0 } } },
     },
     select: { id: true, storeId: true },
@@ -167,12 +162,11 @@ export async function getSubscriptionState(storeId: string, now = new Date()) {
   if (!subscription) return null;
 
   const billingExempt = subscription.store.billingExempt;
-  // Offre gratuite : jamais expirée, jamais de compte à rebours à afficher.
+  // Offre gratuite : en période d'essai de 30 jours (expire après 30j)
   const free = isFreePlan(subscription.plan);
 
   const expired =
     !billingExempt &&
-    !free &&
     LIVE_STATUSES.includes(subscription.status) &&
     new Date(subscription.currentPeriodEnd).getTime() <= now.getTime();
 

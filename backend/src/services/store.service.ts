@@ -2,7 +2,7 @@ import prisma from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../utils/httpError';
 import type { AddMemberInput, CreateStoreInput, UpdateStoreInput, UpdateMemberInput } from '../validators/store.validator';
 import { notifyOwners } from './notification.service';
-import { addDays, FREE_PLAN_DAYS, isFreePlan, TRIAL_DAYS } from './subscription.service';
+import { addDays, FREE_PLAN_DAYS } from './subscription.service';
 
 export async function createStore(userId: string, input: CreateStoreInput) {
   const plan = await prisma.plan.findUnique({ where: { name: 'FREE' } });
@@ -15,8 +15,7 @@ export async function createStore(userId: string, input: CreateStoreInput) {
   // directement ACTIVE et sans date de fin, sinon le cron l'aurait marquée
   // EXPIRED au bout de l'essai et l'application serait devenue bloquée en
   // lecture seule. La période lointaine garde `isLive` vrai.
-  const isFree = isFreePlan(plan);
-  const periodEnd = isFree ? addDays(now, FREE_PLAN_DAYS) : addDays(now, TRIAL_DAYS);
+  const periodEnd = addDays(now, FREE_PLAN_DAYS);
 
   // Les boutiques créées par un superadmin (compte interne MadaStock) sont
   // exemptées : aucun paiement, jamais d'expiration.
@@ -53,8 +52,8 @@ export async function createStore(userId: string, input: CreateStoreInput) {
       data: {
         storeId: store.id,
         planId: plan.id,
-        status: isFree ? 'ACTIVE' : 'TRIALING',
-        trialEndsAt: isFree ? null : periodEnd,
+        status: 'TRIALING',
+        trialEndsAt: periodEnd,
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         priceAr: plan.priceAr,
@@ -77,11 +76,9 @@ export async function createStore(userId: string, input: CreateStoreInput) {
   await notifyOwners({
     storeId: result.id,
     type: 'SUBSCRIPTION_ACTIVATED',
-    title: isFree ? 'Boutique créée' : `Essai gratuit de ${TRIAL_DAYS} jours`,
-    message: isFree
-      ? `La boutique « ${result.name} » est prête sur l'offre gratuite. Changez d'offre à tout moment depuis l'onglet Abonnement.`
-      : `La boutique « ${result.name} » est prête. Votre essai se termine le ${periodEnd.toLocaleDateString('fr-FR')} : pensez à choisir un abonnement avant.`,
-    data: { trialDays: isFree ? 0 : TRIAL_DAYS, to: '/billing' },
+    title: `Essai gratuit de ${FREE_PLAN_DAYS} jours`,
+    message: `La boutique « ${result.name} » est prête. Votre essai se termine le ${periodEnd.toLocaleDateString('fr-FR')} : pensez à choisir un abonnement avant.`,
+    data: { trialDays: FREE_PLAN_DAYS, to: '/billing' },
   });
 
   return result;
