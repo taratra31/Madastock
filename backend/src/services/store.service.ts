@@ -2,7 +2,7 @@ import prisma from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../utils/httpError';
 import type { AddMemberInput, CreateStoreInput, UpdateStoreInput, UpdateMemberInput } from '../validators/store.validator';
 import { notifyOwners } from './notification.service';
-import { TRIAL_DAYS, trialPeriod } from './subscription.service';
+import { addDays, FREE_PLAN_DAYS, isFreePlan, TRIAL_DAYS } from './subscription.service';
 
 export async function createStore(userId: string, input: CreateStoreInput) {
   const plan = await prisma.plan.findUnique({ where: { name: 'FREE' } });
@@ -11,9 +11,12 @@ export async function createStore(userId: string, input: CreateStoreInput) {
   }
 
   const now = new Date();
-  // L'essai gratuit dure TRIAL_DAYS : currentPeriodEnd suit trialEndsAt pour que
-  // le compte à rebours affiché (J-13, J-12...) soit le seul vrai.
-  const trial = trialPeriod(now);
+  // L'offre gratuite est perpétuelle (« 0 Ar, pour toujours ») : on la crée
+  // directement ACTIVE et sans date de fin, sinon le cron l'aurait marquée
+  // EXPIRED au bout de l'essai et l'application serait devenue bloquée en
+  // lecture seule. La période lointaine garde `isLive` vrai.
+  const isFree = isFreePlan(plan);
+  const periodEnd = isFree ? addDays(now, FREE_PLAN_DAYS) : addDays(now, TRIAL_DAYS);
 
   // Les boutiques créées par un superadmin (compte interne MadaStock) sont
   // exemptées : aucun paiement, jamais d'expiration.
@@ -50,10 +53,10 @@ export async function createStore(userId: string, input: CreateStoreInput) {
       data: {
         storeId: store.id,
         planId: plan.id,
-        status: 'TRIALING',
-        trialEndsAt: trial.end,
-        currentPeriodStart: trial.start,
-        currentPeriodEnd: trial.end,
+        status: isFree ? 'ACTIVE' : 'TRIALING',
+        trialEndsAt: isFree ? null : periodEnd,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
         priceAr: plan.priceAr,
         billingCycle: plan.billingCycle,
       },
@@ -70,13 +73,15 @@ export async function createStore(userId: string, input: CreateStoreInput) {
     return store;
   });
 
-  // Bienvenue : lepropriétaire voit tout de suite son temps restant.
+  // Bienvenue : le propriétaire voit tout de suite ce qui l'attend.
   await notifyOwners({
     storeId: result.id,
     type: 'SUBSCRIPTION_ACTIVATED',
-    title: 'Essai gratuit de 14 jours',
-    message: `La boutique « ${result.name} » est prête. Votre essai se termine le ${trial.end.toLocaleDateString('fr-FR')} : pensez à choisir un abonnement avant.`,
-    data: { trialDays: TRIAL_DAYS, to: '/billing' },
+    title: isFree ? 'Boutique créée' : `Essai gratuit de ${TRIAL_DAYS} jours`,
+    message: isFree
+      ? `La boutique « ${result.name} » est prête sur l'offre gratuite. Changez d'offre à tout moment depuis l'onglet Abonnement.`
+      : `La boutique « ${result.name} » est prête. Votre essai se termine le ${periodEnd.toLocaleDateString('fr-FR')} : pensez à choisir un abonnement avant.`,
+    data: { trialDays: isFree ? 0 : TRIAL_DAYS, to: '/billing' },
   });
 
   return result;

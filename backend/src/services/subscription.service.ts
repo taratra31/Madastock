@@ -4,6 +4,22 @@ import prisma from '../lib/prisma';
 /** Durée de l'essai gratuit d'une nouvelle boutique, en jours. */
 export const TRIAL_DAYS = 14;
 
+/**
+ * L'offre gratuite est PERPÉTUELLE.
+ *
+ * L'offre « Gratuit » est annoncée « 0 Ar, pour toujours » sur le site : elle
+ * ne doit donc jamais expirer. Avant, une boutique partait en essai de 14 jours
+ * puis le cron la passait EXPIRED, ce qui rendait toute l'application en
+ * lecture seule (402 sur chaque écriture) sans jamais avoir rien facturé.
+ * Seules les offres payées ont une durée de vie.
+ */
+export const FREE_PLAN_DAYS = 36500;
+
+/** true si l'offre est gratuite : aucune expiration, aucune alerte. */
+export function isFreePlan(plan: { priceAr?: unknown } | null | undefined): boolean {
+  return Number(plan?.priceAr ?? 1) <= 0;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Statuts qui encore « consomment » du temps d'abonnement. */
@@ -103,6 +119,8 @@ export async function expireDueSubscriptions(now = new Date()): Promise<string[]
       status: { in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] },
       currentPeriodEnd: { lte: now },
       store: { billingExempt: false },
+      // L'offre gratuite n'expire jamais (0 Ar, pour toujours).
+      NOT: { plan: { priceAr: { lte: 0 } } },
     },
     select: { id: true, storeId: true },
   });
@@ -127,6 +145,8 @@ export async function subscriptionsWithDaysLeft(days: number, now = new Date()) 
       status: { in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] },
       currentPeriodEnd: { gt: addDays(now, days - 1), lte: addDays(now, days) },
       store: { billingExempt: false },
+      // Pas d'alerte « votre abonnement expire » sur une offre gratuite.
+      NOT: { plan: { priceAr: { lte: 0 } } },
     },
     include: { plan: true, store: { select: { id: true, name: true } } },
   });
@@ -147,9 +167,12 @@ export async function getSubscriptionState(storeId: string, now = new Date()) {
   if (!subscription) return null;
 
   const billingExempt = subscription.store.billingExempt;
+  // Offre gratuite : jamais expirée, jamais de compte à rebours à afficher.
+  const free = isFreePlan(subscription.plan);
 
   const expired =
     !billingExempt &&
+    !free &&
     LIVE_STATUSES.includes(subscription.status) &&
     new Date(subscription.currentPeriodEnd).getTime() <= now.getTime();
 
@@ -181,6 +204,8 @@ export async function getSubscriptionState(storeId: string, now = new Date()) {
     storedStatus: subscription.status,
     /* Boutique interne (admin/démo) : aucun paiement, jamais d'expiration. */
     billingExempt,
+    /* Offre gratuite (0 Ar) : accès permanent, aucun compte à rebours. */
+    isFreePlan: free,
     isExpired: !billingExempt && (status === 'EXPIRED' || status === 'CANCELLED'),
     isLive: billingExempt || LIVE_STATUSES.includes(status),
     isTrial: status === 'TRIALING',

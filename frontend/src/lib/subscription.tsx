@@ -25,6 +25,8 @@ export interface SubscriptionState {
   planName: string;
   status: string;
   billingExempt?: boolean;
+  /** Offre gratuite (0 Ar) : accès permanent, aucun compte à rebours. */
+  isFreePlan?: boolean;
   isExpired: boolean;
   isLive: boolean;
   isTrial: boolean;

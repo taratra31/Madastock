@@ -471,7 +471,18 @@ export default function Billing() {
                             <>
                               Passer à {planLabel[plan.name] ?? plan.name} <ArrowUpRight className="w-4 h-4" />
                             </>
-                          ) : (
+) : state?.isFreePlan ? (
+                      // Offre gratuite : aucun cycle, aucun compte à rebours
+                      // (« 0 Ar, pour toujours »).
+                      <p className="text-sm text-slate-500 leading-relaxed">
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+                          <CheckCircle2 className="w-4 h-4" /> Offre gratuite, sans limite de durée.
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-400">
+                          Vous avez accès à l\'essentiel pour toujours. Changez d\'offre quand vous en avez besoin.
+                        </span>
+                      </p>
+                    ) : (
                             <>
                               S'abonner à {planLabel[plan.name] ?? plan.name}
                             </>

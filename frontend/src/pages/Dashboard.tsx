@@ -314,13 +314,15 @@ export default function Dashboard() {
 
   const planStatusLabel = billingExempt || platformAdmin
     ? 'Accès complet'
-    : !planState
-      ? 'Mode gratuit'
-      : planState.isExpired
-        ? 'Expiré · à renouveler'
-        : planState.isTrial
-          ? `Essai · ${planState.trialDaysRemaining} j`
-          : `${planState.daysRemaining} j restants`;
+    : planState?.isFreePlan
+      ? 'Gratuit à vie'
+      : !planState
+        ? 'Mode gratuit'
+        : planState.isExpired
+          ? 'Expiré · à renouveler'
+          : planState.isTrial
+            ? `Essai · ${planState.trialDaysRemaining} j`
+            : `${planState.daysRemaining} j restants`;
 
   return (
     <div className="space-y-6">
