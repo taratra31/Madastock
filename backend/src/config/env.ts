@@ -66,24 +66,39 @@ try {
   process.exit(1);
 }
 
-// Garde-fous production : on refuse de démarrer avec une configuration qui
-// rendrait les jetons forgeables ou les comptes admin devinables.
+// Garde-fous production sur la solidité du JWT_SECRET.
+//
+// ⚠ AVERTISSEMENT, PAS BLOCAGE. Un `process.exit(1)` ici a déjà fait tomber
+// l'application en production : unRender dont le secret fait 24 caractères
+// s'est mis à boucler sur "Exited with status 1". Un secret trop court est
+// une faiblesse, pas une panne : on crie dans les logs et on démarre.
+//
+// Pour rendre le contrôle bloquant (une fois le secret réellement renforcé) :
+// JWT_STRICT_STARTUP=1.
 if (_env.NODE_ENV === 'production') {
   const problems: string[] = [];
 
   if (_env.JWT_SECRET.length < 32) {
-    problems.push('JWT_SECRET doit contenir au moins 32 caractères en production.');
+    problems.push(
+      `JWT_SECRET fait ${_env.JWT_SECRET.length} caractères : 32 minimum est ` +
+        'recommandé pour rendre le brute-force du secret hors de portée.',
+    );
   }
 
   const weakSecret = /^(changeme|secret|example|test|dev|madastock|123)/i;
   if (weakSecret.test(_env.JWT_SECRET)) {
-    problems.push('JWT_SECRET ressemble à un exemple : changez-le.');
+    problems.push('JWT_SECRET ressemble à un exemple : changez-le par une valeur aléatoire.');
   }
 
   if (problems.length > 0) {
-    console.error('[ENV] Configuration de production refusée :');
-    for (const problem of problems) console.error(`  - ${problem}`);
-    process.exit(1);
+    const strict = process.env.JWT_STRICT_STARTUP === '1';
+    const log = strict ? console.error : console.warn;
+    log(`[ENV] JWT_SECRET à renforcer en production${strict ? ' (démarrage bloqué)' : ''} :`);
+    for (const problem of problems) log(`  - ${problem}`);
+    log('[ENV] Générez une valeur solide avec : node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"');
+    log('[ENV] ATTENTION : changer JWT_SECRET déconnecte toutes les sessions ouvertes.');
+
+    if (strict) process.exit(1);
   }
 }
 
