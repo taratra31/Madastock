@@ -23,6 +23,9 @@ import {
   Store,
   Plus,
   AlertCircle,
+  Crown,
+  Warehouse,
+  UserCheck,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -39,6 +42,8 @@ import {
 } from 'recharts';
 import { useAuth } from '../lib/auth';
 import { useStores } from '../lib/store';
+import { useSubscription } from '../lib/subscription';
+import { planDisplayName } from '../lib/plans';
 import api from '../lib/api';
 import { formatAr, formatNumber, formatDateTime } from '../lib/format';
 import { paymentMethodLabels, movementLabels } from '../lib/labels';
@@ -52,6 +57,7 @@ interface DashboardStats {
     customers: number;
     warehouses: number;
     suppliers: number;
+    members: number;
     lowStock: number;
   };
   totalStockUnits: number;
@@ -165,6 +171,7 @@ function SectionTitle({
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const { memberships, currentStore, setCurrentStore } = useStores();
+  const { data: billingData, state: planState, billingExempt, platformAdmin } = useSubscription();
   const navigate = useNavigate();
 
   const { data: stats, isFetching, refetch } = useQuery({
@@ -287,8 +294,33 @@ export default function Dashboard() {
   const weekAvg = weekData.length ? weekTotal / weekData.length : 0;
   const bestDay = weekData.reduce(
     (a, b) => (b.revenue > a.revenue ? b : a),
-    { day: '—', revenue: 0 } as { day: string; revenue: number; count: number },
+    { day: '—', revenue: 0, count: 0 } as { day: string; revenue: number; count: number },
   );
+
+  // --- Forfait en cours : l'offre réellement utilisée et la consommation ---
+  // Sans abonnement, la boutique tourne sur l'offre gratuite : on affiche
+  // donc ses plafonds (1 utilisateur, 50 produits, 1 entrepôt, 100 clients).
+  const currentPlan =
+    billingData?.subscription?.plan ?? billingData?.plans?.find((p) => p.name === 'FREE') ?? null;
+
+  const planUsage = currentPlan
+    ? [
+        { icon: Users, label: 'Utilisateurs', used: stats?.counts.members ?? 0, max: currentPlan.maxUsers },
+        { icon: Package, label: 'Produits', used: stats?.counts.products ?? 0, max: currentPlan.maxProducts },
+        { icon: Warehouse, label: 'Entrepôts', used: stats?.counts.warehouses ?? 0, max: currentPlan.maxWarehouses },
+        { icon: UserCheck, label: 'Clients', used: stats?.counts.customers ?? 0, max: currentPlan.maxCustomers },
+      ]
+    : [];
+
+  const planStatusLabel = billingExempt || platformAdmin
+    ? 'Accès complet'
+    : !planState
+      ? 'Mode gratuit'
+      : planState.isExpired
+        ? 'Expiré · à renouveler'
+        : planState.isTrial
+          ? `Essai · ${planState.trialDaysRemaining} j`
+          : `${planState.daysRemaining} j restants`;
 
   return (
     <div className="space-y-6">
@@ -500,6 +532,82 @@ export default function Dashboard() {
               sub={<span>Bénéfice mois : {formatAr(stats?.totalProfitMonth ?? 0)}</span>}
             />
           </div>
+
+          {/* Forfait utilisé et consommation des limites */}
+          {currentPlan && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
+                    <Crown className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-slate-500">Votre forfait</p>
+                    <p className="text-lg font-bold text-dark-900 leading-tight truncate">
+                      {planDisplayName[currentPlan.name] ?? currentPlan.name}
+                      <span className="ml-2 text-sm font-semibold text-emerald-600">
+                        {Number(currentPlan.priceAr) <= 0
+                          ? 'Gratuit'
+                          : `${formatNumber(currentPlan.priceAr)} Ar / mois`}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg ${
+                      planState && !planState.isLive && !billingExempt && !platformAdmin
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {planStatusLabel}
+                  </span>
+                  <button
+                    onClick={() => navigate('/billing')}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-slate-800"
+                  >
+                    Gérer mon offre
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {planUsage.map((item) => {
+                  const pct = item.max > 0 ? Math.min(100, Math.round((item.used / item.max) * 100)) : 0;
+                  const full = item.used >= item.max;
+                  const near = pct >= 90;
+                  const barCls = full
+                    ? 'bg-rose-500'
+                    : near
+                      ? 'bg-amber-500'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-500';
+                  return (
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-[13px] font-medium text-slate-600">
+                          <item.icon className="h-4 w-4 text-slate-400" />
+                          {item.label}
+                        </span>
+                        {full && <AlertCircle className="h-4 w-4 text-rose-500" />}
+                      </div>
+                      <p className="mt-1.5 text-base font-bold text-dark-900">
+                        {formatNumber(item.used)}
+                        <span className="text-[13px] font-medium text-slate-400">
+                          {' '}
+                          / {formatNumber(item.max)}
+                        </span>
+                      </p>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div className={`h-full rounded-full ${barCls}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Graphiques */}
           <div className="grid lg:grid-cols-5 gap-4">

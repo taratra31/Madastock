@@ -11,7 +11,7 @@ export async function getDashboardStats(storeId: string) {
   startOfWeek.setHours(0, 0, 0, 0);
 
   const [
-    productCount, categoryCount, customerCount, warehouseCount, supplierCount,
+    productCount, categoryCount, customerCount, warehouseCount, supplierCount, memberCount,
     salesTotals, monthSales, todaySales, yesterdaySales, weekSales,
     unitStats,
   ] = await Promise.all([
@@ -20,6 +20,9 @@ export async function getDashboardStats(storeId: string) {
     prisma.customer.count({ where: { storeId, isActive: true } }),
     prisma.warehouse.count({ where: { storeId, isActive: true } }),
     prisma.supplier.count({ where: { storeId, isActive: true } }),
+    // Nombre d'utilisateurs de la boutique : sert à afficher « 3 / 10
+    // utilisateurs » sur la carte « Votre forfait » du tableau de bord.
+    prisma.storeMember.count({ where: { storeId } }),
     prisma.sale.aggregate({
       where: { storeId, status: 'COMPLETED', cancelledAt: null },
       _sum: { totalAr: true, discountAr: true, taxAr: true },
@@ -178,6 +181,7 @@ export async function getDashboardStats(storeId: string) {
       customers: customerCount,
       warehouses: warehouseCount,
       suppliers: supplierCount,
+      members: memberCount,
       lowStock: lowStockProducts.length,
     },
     totalStockUnits: Number(unitStats._sum.quantityAr ?? 0),
