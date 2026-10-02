@@ -476,10 +476,10 @@ export default function Billing() {
                       // (« 0 Ar, pour toujours »).
                         <p className="text-sm text-slate-500 leading-relaxed">
                           <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
-                            <CheckCircle2 className="w-4 h-4" /> Gratuit à vie, sans limite de durée.
+                            <CheckCircle2 className="w-4 h-4" /> Essai gratuit (30 jours)
                           </span>
                           <span className="mt-1 block text-xs text-slate-400">
-                            Accès illimité dans le temps, sans échéance.
+                            Votre période d'essai se termine automatiquement à son échéance.
                           </span>
                         </p>
                     ) : (
