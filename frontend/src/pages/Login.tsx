@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AtSign, Eye, EyeOff, Loader2, Lock, LogIn, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import AuthShell, {
   authPrimaryBtnCls,
 } from '../components/AuthShell';
 import FlagMG from '../components/FlagMG';
+import { appUrl, goToApp } from '../lib/appBase';
 
 /** Écriture nationale malgache : 034 12 345 67 (10 chiffres). */
 function formatMgPhone(raw: string): string {
@@ -49,7 +50,13 @@ export default function Login() {
     setIdentifier(raw.includes('@') || !/\d/.test(raw) ? raw : formatMgPhone(raw));
   };
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  // La redirection passe par `location` : le dashboard vit sous le préfixe
+  // secret, qui n'est strippingé que par le routeur privé monté au démarrage.
+  useEffect(() => {
+    if (isAuthenticated) goToApp('/dashboard');
+  }, [isAuthenticated]);
+
+  if (isAuthenticated) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +90,7 @@ export default function Login() {
       footer={
         <>
           Pas encore de compte ?{' '}
-          <Link to="/register" className={authLinkCls}>
+          <Link to={appUrl('/register')} className={authLinkCls}>
             Créer un compte
           </Link>
         </>

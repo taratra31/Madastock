@@ -4,6 +4,7 @@ import { CheckCircle2, ArrowRight } from 'lucide-react';
 import api from '../lib/api';
 import MarketingLayout from '../layouts/MarketingLayout';
 import { enterpriseCard, planToCard, type PriceCard, type PublicPlan } from '../lib/plans';
+import { appUrl } from '../lib/appBase';
 
 export default function Pricing() {
   const [cards, setCards] = useState<PriceCard[]>([enterpriseCard]);
@@ -74,7 +75,7 @@ export default function Pricing() {
                   </ul>
 
                   <Link
-                    to={c.ctaHref.startsWith('/') ? c.ctaHref : `/register?plan=${c.key}`}
+                    to={c.ctaHref.startsWith('/') ? c.ctaHref : appUrl(`/register?plan=${c.key}`)}
                     className={
                       c.highlighted
                         ? 'mt-6 inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-3 rounded-xl transition-colors'
@@ -96,7 +97,7 @@ export default function Pricing() {
           </p>
           <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              to="/register"
+              to={appUrl('/register')}
               className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-dark-900 font-semibold px-6 py-3 rounded-xl transition-colors"
             >
               Créer mon compte

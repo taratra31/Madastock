@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X, Mail, MapPin, Phone, Clock, BellRing } from 'lucide-react';
+import { appUrl } from '../lib/appBase';
 
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,7 +48,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                 Se connecter
               </Link>
               <Link
-                to="/register"
+                to={appUrl('/register')}
                 className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm shadow-green-500/30 transition-colors"
               >
                 Créer un compte
@@ -95,7 +96,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
                 Se connecter
               </Link>
               <Link
-                to="/register"
+                to={appUrl('/register')}
                 className="text-center bg-green-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg"
               >
                 Créer un compte
@@ -135,7 +136,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             <h4 className="text-white font-semibold text-sm">Entreprise</h4>
             <ul className="mt-4 space-y-2.5 text-sm">
               <li><a href="mailto:madaorganisation@gmail.com" className="hover:text-white transition-colors">Nous contacter</a></li>
-              <li><Link to="/register" className="hover:text-white transition-colors">Créer un compte</Link></li>
+              <li><Link to={appUrl('/register')} className="hover:text-white transition-colors">Créer un compte</Link></li>
               <li><Link to="/login" className="hover:text-white transition-colors">Se connecter</Link></li>
             </ul>
           </div>

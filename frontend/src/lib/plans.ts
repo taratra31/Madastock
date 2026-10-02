@@ -1,4 +1,5 @@
 import { formatNumber } from './format';
+import { appUrl } from './appBase';
 
 export interface PublicPlan {
   id: string;
@@ -71,7 +72,7 @@ export function planToCard(plan: PublicPlan, popular: boolean): PriceCard {
     features,
     highlighted: popular,
     cta: free ? 'Commencer gratuitement' : `Choisir ${planDisplayName[plan.name] ?? plan.name}`,
-    ctaHref: '/register',
+    ctaHref: appUrl('/register'),
   };
 }
 

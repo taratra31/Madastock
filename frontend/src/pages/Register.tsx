@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { AtSign, Eye, EyeOff, Loader2, Lock, User, UserPlus } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import AuthShell, {
   authPrimaryBtnCls,
 } from '../components/AuthShell';
 import FlagMG from '../components/FlagMG';
+import { goToApp } from '../lib/appBase';
 
 const MADAGASCAR_PHONE_PATTERN = /^(32|33|34|35|37|38)\d{7}$/;
 
@@ -39,7 +40,11 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  useEffect(() => {
+    if (isAuthenticated) goToApp('/dashboard');
+  }, [isAuthenticated]);
+
+  if (isAuthenticated) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

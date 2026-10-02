@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
@@ -10,16 +10,22 @@ import AuthShell, {
   authLinkCls,
   authPrimaryBtnCls,
 } from '../components/AuthShell';
+import { goToApp } from '../lib/appBase';
 
 export default function VerifyEmail() {
   const { pendingVerifyEmail, verifyEmail, resendCode, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [resending, setResending] = useState(false);
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  // Rechargement complet : le préfixe secret n'est appliqué que par le routeur
+  // privé, monté au chargement de la page.
+  useEffect(() => {
+    if (isAuthenticated) goToApp('/dashboard');
+  }, [isAuthenticated]);
+
+  if (isAuthenticated) return null;
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -33,7 +39,7 @@ export default function VerifyEmail() {
     try {
       await verifyEmail(code);
       toast.success('Compte activé');
-      navigate('/dashboard', { replace: true });
+      goToApp('/dashboard');
     } catch (err) {
       toast.error(
         (err as AxiosError<{ error: string }>).response?.data?.error ?? 'Code invalide ou expiré',

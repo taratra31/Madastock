@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, HelpCircle, ArrowRight } from 'lucide-react';
 import MarketingLayout from '../layouts/MarketingLayout';
 import { faqs } from '../lib/content';
+import { appUrl } from '../lib/appBase';
 
 export default function Faq() {
   const [open, setOpen] = useState<number | null>(0);
@@ -54,7 +55,7 @@ export default function Faq() {
           </p>
           <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              to="/register"
+              to={appUrl('/register')}
               className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-dark-900 font-semibold px-6 py-3 rounded-xl transition-colors"
             >
               Démarrer gratuitement

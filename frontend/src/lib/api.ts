@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { APP_KEY } from './appBase';
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -11,7 +12,14 @@ const api = axios.create({
 const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/faq', '/pricing'];
 
 const isPublicPath = () => {
-  const p = window.location.pathname;
+  // Le préfixe secret fait partie de l'adresse mais pas de la route : on le
+  // retire avant la comparaison, sinon `/k7m4x9q2/register` serait pris pour
+  // une page privée et le refresh de session renverrait à tort vers /login.
+  const prefix = APP_KEY ? `/${APP_KEY}` : '';
+  let p = window.location.pathname;
+  if (prefix && (p === prefix || p.startsWith(`${prefix}/`))) {
+    p = p.slice(prefix.length) || '/';
+  }
   if (p === '/') return true;
   return PUBLIC_PATHS.some((path) => p === path || p.startsWith(`${path}/`));
 };

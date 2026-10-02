@@ -44,21 +44,29 @@ import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminRoute from './components/AdminRoute';
 import AppLayout from './layouts/AppLayout';
 import GtmPageView from './components/GtmPageView';
+import { APP_KEY, isInPrivateArea } from './lib/appBase';
 
 function App() {
+  // Dans l'espace réservé, le préfixe est retiré de la barre d'adresse : les
+  // routes ci-dessous s'écrivent donc sans préfixe, comme toujours.
+  const privateArea = isInPrivateArea();
+  // Sans clé configurée, tout reste accessible aux chemins historiques.
+  const privateVisible = !APP_KEY || privateArea;
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={privateArea ? `/${APP_KEY}` : undefined}>
       <GtmPageView />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {privateVisible && <Route path="/register" element={<Register />} />}
 <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/faq" element={<Faq />} />
         <Route path="/pricing" element={<Pricing />} />
-        <Route path="/stores" element={<Stores />} />
+        {privateVisible && <Route path="/stores" element={<Stores />} />}
+        {privateVisible && (
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/products" element={<Products />} />
@@ -95,7 +103,8 @@ function App() {
             <Route path="whatsapp" element={<AdminWhatsApp />} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        )}
+        <Route path="*" element={<Navigate to={privateArea ? '/dashboard' : '/'} replace />} />
       </Routes>
       <Toaster position="top-right" richColors />
     </BrowserRouter>

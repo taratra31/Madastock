@@ -1,9 +1,10 @@
 import { useEffect, useState, type ElementType } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { formatNumber } from '../lib/format';
 import { MobileMoneyLogo, MOBILE_MONEY_OPERATORS } from '../components/MobileMoneyLogo';
 import api from '../lib/api';
+import { appUrl, goToApp } from '../lib/appBase';
 import {
   Menu,
   X,
@@ -222,7 +223,7 @@ function planToCard(plan: PublicPlan, popular: boolean): PriceCard {
     features,
     highlighted: popular,
     cta: free ? 'Commencer gratuitement' : `Choisir ${planDisplayName[plan.name] ?? plan.name}`,
-    ctaHref: '/register',
+    ctaHref: appUrl('/register'),
   };
 }
 
@@ -272,7 +273,13 @@ export default function Home() {
       });
   }, []);
 
-  if (isAuthenticated && !isLoading) return <Navigate to="/dashboard" replace />;
+  // Rechargement complet : le dashboard est sous le préfixe secret, appliqué par
+  // le routeur privé monté au chargement. Un simple <Navigate> resterait ici.
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) goToApp('/dashboard');
+  }, [isAuthenticated, isLoading]);
+
+  if (isAuthenticated && !isLoading) return null;
 
   const navLink =
     'text-slate-600 hover:text-dark-900 font-medium text-sm transition-colors relative after:absolute after:-bottom-1 after:left-0 after:h-px after:w-0 after:bg-green-600 after:transition-all hover:after:w-full';
@@ -314,7 +321,7 @@ export default function Home() {
                 Se connecter
               </Link>
               <Link
-                to="/register"
+                to={appUrl('/register')}
                 className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm shadow-green-600/25 transition-all"
               >
                 Créer un compte
@@ -358,7 +365,7 @@ export default function Home() {
                 Se connecter
               </Link>
               <Link
-                to="/register"
+                to={appUrl('/register')}
                 className="text-center bg-green-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg"
               >
                 Créer un compte
@@ -417,7 +424,7 @@ export default function Home() {
               </div>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
-                  to="/register"
+                  to={appUrl('/register')}
                   className="group inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:scale-[0.99] text-white font-semibold px-7 py-4 rounded-xl shadow-lg shadow-green-600/25 transition-all"
                 >
                   Démarrer gratuitement
@@ -633,7 +640,7 @@ export default function Home() {
           </div>
           <div className="mt-10 text-center">
             <Link
-              to="/register"
+              to={appUrl('/register')}
               className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 active:scale-[0.99] text-dark-900 font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-green-500/20 transition-all"
             >
               Commencer maintenant
@@ -861,7 +868,7 @@ export default function Home() {
             </p>
             <div className="relative mt-8 flex flex-col sm:flex-row justify-center gap-3">
               <Link
-                to="/register"
+                to={appUrl('/register')}
                 className="bg-white hover:bg-slate-50 text-green-700 font-semibold px-7 py-3.5 rounded-xl transition-colors"
               >
                 Démarrer gratuitement
