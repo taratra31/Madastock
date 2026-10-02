@@ -33,8 +33,11 @@ const envSchema = z.object({
   EMAIL_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().default('MadaStock <noreply@madastock.mg>'),
   VERIFY_CODE_TTL_MINUTES: z.string().default('15').transform(Number),
+  // Bootstrap admin : SANS ces deux variables, AUCUN compte n'est créé.
   SUPERADMIN_EMAIL: z.string().email('Email superadmin invalide').optional(),
-  SUPERADMIN_PASSWORD: z.string().min(6).optional(),
+  SUPERADMIN_PASSWORD: z.string().min(12, 'Mot de passe superadmin : 12 caractères minimum').optional(),
+  // 'closed' refuse toute nouvelle inscription (réponse générique).
+  REGISTRATION_MODE: z.enum(['open', 'closed']).default('open'),
   // --- Assistant IA (Google Gemini, OPTIONNEL) ---
   // Sans GEMINI_API_KEY, /ai/chat et /ai/generate répondent 503 ; les
   // suggestions restent disponibles (elles sont calculées côté serveur).
@@ -61,6 +64,27 @@ try {
 } catch (error) {
   console.error('Invalid environment variables:', error);
   process.exit(1);
+}
+
+// Garde-fous production : on refuse de démarrer avec une configuration qui
+// rendrait les jetons forgeables ou les comptes admin devinables.
+if (_env.NODE_ENV === 'production') {
+  const problems: string[] = [];
+
+  if (_env.JWT_SECRET.length < 32) {
+    problems.push('JWT_SECRET doit contenir au moins 32 caractères en production.');
+  }
+
+  const weakSecret = /^(changeme|secret|example|test|dev|madastock|123)/i;
+  if (weakSecret.test(_env.JWT_SECRET)) {
+    problems.push('JWT_SECRET ressemble à un exemple : changez-le.');
+  }
+
+  if (problems.length > 0) {
+    console.error('[ENV] Configuration de production refusée :');
+    for (const problem of problems) console.error(`  - ${problem}`);
+    process.exit(1);
+  }
 }
 
 export const env = _env;

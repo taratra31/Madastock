@@ -119,7 +119,7 @@ describe('Auth', () => {
     expect(res.body).not.toHaveProperty('token');
   });
 
-  it('register : refuse un email déjà utilisé', async () => {
+  it('register : ne révèle pas si un email est déjà utilisé (anti-énumération)', async () => {
     prismaMock.user.findUnique.mockResolvedValue(baseUser);
 
     const res = await request(app).post('/api/v1/auth/register').send({
@@ -128,7 +128,12 @@ describe('Auth', () => {
       fullName: 'Test User',
     });
 
-    expect(res.status).toBe(409);
+    // Réponse identique à une inscription réussie : impossible de découvrir
+    // quels emails sont inscrits, et aucun code n'est envoyé au détenteur.
+    expect(res.status).toBe(201);
+    expect(res.body.requiresVerification).toBe(true);
+    expect(res.body.email).toBe('test@madastock.mg');
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
   it('register : valide les données (password court)', async () => {
@@ -271,7 +276,7 @@ describe('Auth', () => {
     expect(res.status).toBe(400);
   });
 
-  it('register : refuse un numéro déjà utilisé (pas de doublon)', async () => {
+  it('register : ne crée pas de doublon de numéro (réponse générique)', async () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
     prismaMock.user.findFirst.mockResolvedValue({ id: 'user-1' });
 
@@ -282,11 +287,14 @@ describe('Auth', () => {
       phone: '+261340000000',
     });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toMatch(/numéro/i);
+    // Pas de 409 « ce numéro existe » : ce message permettait d'énumérer les
+    // numéros enregistrés.
+    expect(res.status).toBe(201);
+    expect(res.body.requiresVerification).toBe(true);
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
-  it('resend-code : renvoie un message pour un compte non vérifié', async () => {
+  it('resend-code : renvoie un message générique pour un compte non vérifié', async () => {
     prismaMock.user.findUnique.mockResolvedValue(pendingUser);
     prismaMock.user.update.mockResolvedValue({ ...pendingUser, emailVerifyCode: '654321' });
 
@@ -295,10 +303,10 @@ describe('Auth', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe('Un nouveau code a été envoyé.');
+    expect(res.body.message).toMatch(/un nouveau code/i);
   });
 
-  it('resend-code : rate-limit (429) si demandé trop tôt', async () => {
+  it('resend-code : cooldown ne renvoie PAS de 429 (anti-énumération)', async () => {
     prismaMock.user.findUnique.mockResolvedValue({
       ...pendingUser,
       emailVerifySentAt: new Date(),
@@ -308,7 +316,10 @@ describe('Auth', () => {
       email: 'test@madastock.mg',
     });
 
-    expect(res.status).toBe(429);
+    // Un 429 ici révélait que le compte existe ET qu'un code vient d'arriver.
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/un nouveau code/i);
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
   it('/me : nécessite un token valide', async () => {
@@ -342,7 +353,7 @@ describe('Auth', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.message).toContain('code de réinitialisation a été envoyé');
+    expect(res.body.message).toMatch(/un code vient d/i);
   });
 
   it('forgot-password : ne révèle pas l’existence du compte (retour générique)', async () => {
@@ -353,7 +364,7 @@ describe('Auth', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.message).toContain('Si cet e-mail existe');
+    expect(res.body.message).toMatch(/si un compte existe/i);
   });
 
   it('reset-password : réinitialise avec un code valide', async () => {
@@ -396,5 +407,174 @@ describe('Auth', () => {
     });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe('Durcissement du jeton et du compte', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('un refresh token ne donne PAS accès à l\'API (pas de confusion de type)', async () => {
+    // Le refresh token est signé par le même secret que l'access token : sans
+    // claim de type, un refresh token volé == 30 jours d'accès complet.
+    const jwt = (await import('jsonwebtoken')).default;
+    const { env } = await import('../src/config/env');
+
+    const refreshToken = jwt.sign(
+      { sub: 'user-1', email: 'test@madastock.mg', jti: 'session-1', typ: 'refresh' },
+      env.JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '30d' },
+    );
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'test@madastock.mg',
+      isActive: true,
+      deletedAt: null,
+    });
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${refreshToken}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalide|expir/i);
+  });
+
+  it('un compte désactivé perd l\'accès même avec un access token valide', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(verifiedUser);
+
+    const loginRes = await request(app).post('/api/v1/auth/login').send({
+      identifier: 'test@madastock.mg',
+      password: 'password123',
+    });
+    expect(loginRes.status).toBe(200);
+
+    // Le compte est désactivé APRÈS l'émission du jeton.
+    prismaMock.user.findUnique.mockResolvedValue({
+      ...verifiedUser,
+      isActive: false,
+      deletedAt: null,
+    });
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginRes.body.token}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('un compte supprimé (deletedAt) est rejeté', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(verifiedUser);
+
+    const loginRes = await request(app).post('/api/v1/auth/login').send({
+      identifier: 'test@madastock.mg',
+      password: 'password123',
+    });
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      ...verifiedUser,
+      isActive: true,
+      deletedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginRes.body.token}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('un jeton signé avec un autre algorithme est refusé', async () => {
+    const jwt = (await import('jsonwebtoken')).default;
+    const forged = jwt.sign({ sub: 'user-1', email: 'test@madastock.mg' }, 'un-autre-secret', {
+      algorithm: 'HS384',
+    });
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${forged}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('REGISTRATION_MODE=closed ferme les inscriptions', async () => {
+    const { env } = await import('../src/config/env');
+    const previous = env.REGISTRATION_MODE;
+    (env as { REGISTRATION_MODE: string }).REGISTRATION_MODE = 'closed';
+
+    try {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).post('/api/v1/auth/register').send({
+        email: 'nouveau@madastock.mg',
+        password: 'password123',
+        fullName: 'Nouveau Client',
+      });
+
+      expect(res.status).toBe(503);
+      expect(prismaMock.user.create).not.toHaveBeenCalled();
+    } finally {
+      (env as { REGISTRATION_MODE: string }).REGISTRATION_MODE = previous;
+    }
+  });
+});
+
+describe('Bootstrap superadmin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('ne crée AUCUN compte avec des identifiants par défaut', async () => {
+    const { ensureSuperAdmin } = await import('../src/bootstrap/superadmin');
+    const { env } = await import('../src/config/env');
+
+    const previousEmail = env.SUPERADMIN_EMAIL;
+    const previousPassword = env.SUPERADMIN_PASSWORD;
+    delete (env as { SUPERADMIN_EMAIL?: string }).SUPERADMIN_EMAIL;
+    delete (env as { SUPERADMIN_PASSWORD?: string }).SUPERADMIN_PASSWORD;
+
+    try {
+      await ensureSuperAdmin();
+
+      // Régression : avant, un compte admin@madastock.mg / admin123 était créé
+      // à chaque démarrage quand les variables d'environnement manquaient.
+      expect(prismaMock.user.create).not.toHaveBeenCalled();
+      expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+    } finally {
+      (env as { SUPERADMIN_EMAIL?: string }).SUPERADMIN_EMAIL = previousEmail;
+      (env as { SUPERADMIN_PASSWORD?: string }).SUPERADMIN_PASSWORD = previousPassword;
+    }
+  });
+
+  it('ne réécrit jamais le mot de passe d\'un superadmin existant', async () => {
+    const { ensureSuperAdmin } = await import('../src/bootstrap/superadmin');
+    const { env } = await import('../src/config/env');
+
+    const previousEmail = env.SUPERADMIN_EMAIL;
+    const previousPassword = env.SUPERADMIN_PASSWORD;
+    (env as { SUPERADMIN_EMAIL?: string }).SUPERADMIN_EMAIL = 'admin@madastock.mg';
+    (env as { SUPERADMIN_PASSWORD?: string }).SUPERADMIN_PASSWORD = 'UnMotDePasseTresLong2026!';
+
+    try {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'admin-1',
+        email: 'admin@madastock.mg',
+        passwordHash: bcrypt.hashSync('MotDePasseChoisiParLEAdmin2026', 4),
+        isSuperAdmin: true,
+        isActive: true,
+        emailVerified: true,
+      });
+
+      await ensureSuperAdmin();
+
+      // Un redéploiement ne doit pas pouvoir réinitialiser le mot de passe de
+      // l'administrateur (ni son mot de passe choisi, ni le secret d'env).
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    } finally {
+      (env as { SUPERADMIN_EMAIL?: string }).SUPERADMIN_EMAIL = previousEmail;
+      (env as { SUPERADMIN_PASSWORD?: string }).SUPERADMIN_PASSWORD = previousPassword;
+    }
   });
 });

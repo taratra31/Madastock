@@ -1,5 +1,7 @@
 import path from 'path';
 import fs from 'fs';
+import { createHash } from 'crypto';
+import type { Request } from 'express';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -157,6 +159,33 @@ const STRICT_AUTH_ROUTES = [
 for (const route of STRICT_AUTH_ROUTES) {
   app.use(`/api/v1/auth${route}`, authLimiter);
 }
+
+// Plafond PAR COMPTE. Le plafond par IP est contournable : plusieurs IP, ou
+// un X-Forwarded-For manipulé, suffisent à faire incuber une attaque contre un
+// compte donné ou à marteler une boîte mail avec des demandes de code.
+const accountKey = (req: Request): string => {
+  const body = (req.body ?? {}) as { identifier?: string; email?: string };
+  const raw = (body.identifier || body.email || '').trim().toLowerCase();
+  if (!raw) return 'acct:none';
+  return `acct:${createHash('sha256').update(raw).digest('hex').slice(0, 32)}`;
+};
+
+const accountLimiter = (max: number) =>
+  rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    max,
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: accountKey,
+    message: { error: 'Trop de tentatives sur ce compte. Réessayez dans quelques minutes.' },
+  });
+
+app.post('/api/v1/auth/login', accountLimiter(20));
+app.post('/api/v1/auth/register', accountLimiter(10));
+app.post('/api/v1/auth/forgot-password', accountLimiter(10));
+app.post('/api/v1/auth/resend-code', accountLimiter(10));
+
 app.use('/api/v1/auth', authSoftLimiter, authRoutes);
 
 // Back-office : déjà protégé par JWT + superadmin, plafond propre et large

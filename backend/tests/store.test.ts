@@ -302,7 +302,12 @@ describe('Stores', () => {
 
       const token = await loginToken();
 
-      prismaMock.user.findUnique.mockResolvedValue({ id: 'user-2', email: 'member@madastock.mg' });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-2',
+        email: 'member@madastock.mg',
+        isActive: true,
+        deletedAt: null,
+      });
       prismaMock.storeMember.create.mockResolvedValue({
         id: 'membership-3',
         role: 'MANAGER',
@@ -329,7 +334,12 @@ describe('Stores', () => {
 
       const token = await loginToken();
 
-      prismaMock.user.findUnique.mockResolvedValue({ id: 'user-2', email: 'member@madastock.mg' });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-2',
+        email: 'member@madastock.mg',
+        isActive: true,
+        deletedAt: null,
+      });
 
       const res = await request(app)
         .post('/api/v1/stores/members')
@@ -345,7 +355,10 @@ describe('Stores', () => {
 
       const token = await loginToken();
 
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.findUnique.mockImplementation(
+        async ({ where }: { where: { email?: string; id?: string } }) =>
+          where.email === 'inconnu@madastock.mg' ? null : mockUser,
+      );
 
       const res = await request(app)
         .post('/api/v1/stores/members')

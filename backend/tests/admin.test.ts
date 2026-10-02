@@ -219,6 +219,8 @@ describe('Admin (superadmin)', () => {
       const token = await loginAs(mockAdmin);
       prismaMock.user.findUnique
         .mockReset()
+        // 1) middleware authenticate, 2) middleware superadmin, 3) service
+        .mockResolvedValueOnce(mockAdmin)
         .mockResolvedValueOnce(mockAdmin)
         .mockResolvedValueOnce(mockRegularUser);
       prismaMock.user.update.mockResolvedValue({ ...mockRegularUser, isActive: false });

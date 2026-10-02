@@ -1,10 +1,14 @@
 import bcrypt from 'bcryptjs';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { env } from '../config/env';
 import prisma from '../lib/prisma';
 import type { JwtPayload } from '../types/express';
-import { badRequest, conflict, tooManyRequests, unauthorized } from '../utils/httpError';
+import {
+  badRequest,
+  serviceUnavailable,
+  unauthorized,
+} from '../utils/httpError';
 import { sendPasswordResetEmail, sendVerifyCodeEmail } from './mailer.service';
 import { sendOtpWhatsApp, whatsappOtpEnabled } from './whatsapp.service';
 import type {
@@ -18,6 +22,16 @@ import type {
 const BCRYPT_ROUNDS = 10;
 const CODE_TTL_MS = env.VERIFY_CODE_TTL_MINUTES * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60_000;
+// Algorithme épinglé : empêche toute confusion d'algorithme sur la vérification.
+const JWT_ALGORITHM = 'HS256' as const;
+const JWT_SIGN_OPTIONS = { algorithm: JWT_ALGORITHM } as SignOptions;
+const JWT_VERIFY_OPTIONS = { algorithms: [JWT_ALGORITHM] };
+/**
+ * Hash bcrypt factice, utilisé quand l'utilisateur n'existe pas : `bcrypt.compare`
+ * coûte alors le même temps qu'un vrai mot de passe, ce qui empêche de deviner
+ * l'existence d'un compte en mesurant le temps de réponse.
+ */
+const DUMMY_HASH = bcrypt.hashSync('mada-stock-timing-equalizer', BCRYPT_ROUNDS);
 
 export interface SessionMeta {
   userAgent?: string;
@@ -59,14 +73,34 @@ export function durationToMs(value: string): number {
 }
 
 export function signToken(user: { id: string; email: string }): string {
-  const payload: JwtPayload = { sub: user.id, email: user.email };
-  const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'] };
+  const payload: JwtPayload & { typ: 'access' } = {
+    sub: user.id,
+    email: user.email,
+    typ: 'access',
+  };
+  const options: SignOptions = {
+    ...JWT_SIGN_OPTIONS,
+    expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'],
+  };
   return jwt.sign(payload, env.JWT_SECRET, options);
 }
 
 function signRefreshToken(session: { id: string; user: { id: string; email: string } }): string {
-  const payload: JwtPayload & { jti: string } = { sub: session.user.id, email: session.user.email, jti: session.id };
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] });
+  // `typ` distingue le refresh token de l'access token : un refresh token volé
+  // ne peut plus être utilisé comme Bearer token sur l'API.
+  // `rnd` rend chaque rotation unique même si deux appels tombent dans la même
+  // seconde (sinon le hash stocké ne changeait pas et la rotation était inopérante).
+  const payload: JwtPayload & { jti: string; typ: 'refresh'; rnd: string } = {
+    sub: session.user.id,
+    email: session.user.email,
+    jti: session.id,
+    typ: 'refresh',
+    rnd: randomUUID(),
+  };
+  return jwt.sign(payload, env.JWT_SECRET, {
+    ...JWT_SIGN_OPTIONS,
+    expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'],
+  });
 }
 
 function hashToken(token: string): string {
@@ -93,9 +127,12 @@ async function createSession(
 }
 
 async function verifyRefreshToken(refreshToken: string): Promise<{ sessionId: string; user: { id: string; email: string } }> {
-  let payload: JwtPayload & { jti?: string };
+  let payload: JwtPayload & { jti?: string; typ?: string };
   try {
-    payload = jwt.verify(refreshToken, env.JWT_SECRET) as JwtPayload & { jti?: string };
+    payload = jwt.verify(refreshToken, env.JWT_SECRET, JWT_VERIFY_OPTIONS) as JwtPayload & {
+      jti?: string;
+      typ?: string;
+    };
   } catch {
     throw unauthorized('Session expirée ou invalide');
   }
@@ -104,20 +141,39 @@ async function verifyRefreshToken(refreshToken: string): Promise<{ sessionId: st
     throw unauthorized('Session invalide');
   }
 
+  // Un access token ne peut pas être utilisé pour rafraîchir une session.
+  if (payload.typ && payload.typ !== 'refresh') {
+    throw unauthorized('Session invalide');
+  }
+
   const session = await prisma.session.findUnique({ where: { id: payload.jti } });
   if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
     throw unauthorized('Session expirée ou révoquée');
   }
 
-  if (session.tokenHash !== hashToken(refreshToken)) {
+  const storedHash = Buffer.from(session.tokenHash, 'utf8');
+  const presentedHash = Buffer.from(hashToken(refreshToken), 'utf8');
+  if (
+    storedHash.length !== presentedHash.length ||
+    !timingSafeEqual(storedHash, presentedHash)
+  ) {
     throw unauthorized('Session invalide');
   }
 
   return { sessionId: session.id, user: { id: payload.sub, email: payload.email } };
 }
 
+/** Code OTP à 6 chiffres issu d'une source cryptographiquement sûre. */
 function generateCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
+}
+
+/** Comparaison à temps constant d'un code OTP (évite les fuites par timing). */
+function codeEquals(a: string, b: string): boolean {
+  const bufferA = Buffer.from(String(a), 'utf8');
+  const bufferB = Buffer.from(String(b), 'utf8');
+  if (bufferA.length !== bufferB.length) return false;
+  return timingSafeEqual(bufferA, bufferB);
 }
 
 /**
@@ -170,10 +226,27 @@ async function dispatchOtp(
   return 'email';
 }
 
+/**
+ * Inscription.
+ *
+ * Anti-énumération : si l'email ou le numéro existe déjà, on renvoie EXACTEMENT
+ * la même réponse que pour une inscription réussie, sans rien envoyer. Un
+ * attaquant ne peut donc pas découvrir quels emails sont inscrits, et ne peut
+ * pas utiliser ce point d'entrée pour spammer un tiers.
+ */
 export async function register(input: RegisterInput) {
+  const genericResponse = {
+    requiresVerification: true,
+    email: input.email,
+  };
+
+  if (env.REGISTRATION_MODE === 'closed') {
+    throw serviceUnavailable('Les inscriptions sont temporairement fermées.');
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
-    throw conflict('Un compte existe déjà avec cet email — connectez-vous plutôt.');
+    return genericResponse;
   }
 
   // Un même numéro ne doit pas créer un second compte.
@@ -184,7 +257,7 @@ export async function register(input: RegisterInput) {
       select: { id: true },
     });
     if (byPhone) {
-      throw conflict('Un compte existe déjà avec ce numéro — connectez-vous plutôt.');
+      return genericResponse;
     }
   }
 
@@ -212,8 +285,7 @@ export async function register(input: RegisterInput) {
   }
 
   return {
-    requiresVerification: true,
-    email: input.email,
+    ...genericResponse,
     devCode: env.NODE_ENV === 'production' ? undefined : code,
   };
 }
@@ -222,6 +294,8 @@ export async function login(input: LoginInput, meta?: SessionMeta) {
   const raw = (input.identifier || input.email || '').trim();
   const user = await findUserByEmailOrPhone(raw);
   if (!user) {
+    // bcrypt factice : le temps de réponse ne révèle pas l'existence du compte.
+    await bcrypt.compare(input.password, DUMMY_HASH);
     throw unauthorized('Email, numéro ou mot de passe incorrect');
   }
 
@@ -231,7 +305,9 @@ export async function login(input: LoginInput, meta?: SessionMeta) {
   }
 
   if (!user.isActive) {
-    throw unauthorized('Ce compte est désactivé');
+    // Message identique à un échec d'identifiants : pas d'oracle sur le statut.
+    await bcrypt.compare(input.password, DUMMY_HASH);
+    throw unauthorized('Email, numéro ou mot de passe incorrect');
   }
 
   if (!user.emailVerified) {
@@ -253,16 +329,18 @@ export async function login(input: LoginInput, meta?: SessionMeta) {
 
 export async function verifyEmail(input: VerifyEmailInput, meta?: SessionMeta) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
+  const genericFailure = unauthorized('Code invalide ou expiré');
+
   if (!user || !user.emailVerifyCode) {
-    throw unauthorized('Code invalide ou expiré');
+    throw genericFailure;
   }
 
   if (user.emailVerifyExpiresAt && user.emailVerifyExpiresAt.getTime() < Date.now()) {
-    throw unauthorized('Code expiré, demandez un nouveau code');
+    throw genericFailure;
   }
 
-  if (user.emailVerifyCode !== input.code) {
-    throw unauthorized('Code invalide');
+  if (!codeEquals(user.emailVerifyCode, input.code)) {
+    throw genericFailure;
   }
 
   await prisma.user.update({
@@ -301,7 +379,9 @@ export async function refreshSession(refreshToken: string) {
     data: {
       tokenHash: hashToken(newRefresh),
       lastUsedAt: new Date(),
-      expiresAt: new Date(Date.now() + durationToMs(env.JWT_REFRESH_EXPIRES_IN)),
+      // `expiresAt` n'est volontairement PAS repoussé : une session garde une
+      // durée de vie absolue depuis sa création, ce qui empêche d'entretenir
+      // indéfiniment une session volée en appelant /refresh en boucle.
     },
   });
 
@@ -320,14 +400,20 @@ export async function logout(refreshToken?: string): Promise<void> {
   });
 }
 
+/** Message unique, identique que l'e-mail existe ou non (anti-énumération). */
+const RESET_GENERIC_MESSAGE =
+  'Si un compte existe pour cette adresse, un code vient d\'être envoyé.';
+
 export async function requestPasswordReset(input: ForgotPasswordInput) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user || !user.isActive || !user.emailVerified) {
-    return { message: 'Si cet e-mail existe, un code de réinitialisation a été envoyé.' };
+    return { message: RESET_GENERIC_MESSAGE };
   }
 
   if (user.passwordResetSentAt && user.passwordResetSentAt.getTime() > Date.now() - RESEND_COOLDOWN_MS) {
-    throw tooManyRequests('Veuillez patienter avant de demander un nouveau code');
+    // Le cooldown ne doit pas non plus révéler l'existence du compte : on
+    // renvoie le même message générique au lieu d'un 429.
+    return { message: RESET_GENERIC_MESSAGE };
   }
 
   const code = generateCode();
@@ -347,21 +433,23 @@ export async function requestPasswordReset(input: ForgotPasswordInput) {
     throw badRequest("Impossible d'envoyer le code de réinitialisation");
   }
 
-  return { message: 'Un code de réinitialisation a été envoyé.' };
+  return { message: RESET_GENERIC_MESSAGE };
 }
 
 export async function resetPassword(input: ResetPasswordInput) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
+  const genericFailure = unauthorized('Code invalide ou expiré');
+
   if (!user || !user.passwordResetCode) {
-    throw unauthorized('Code invalide ou expiré');
+    throw genericFailure;
   }
 
   if (user.passwordResetExpiresAt && user.passwordResetExpiresAt.getTime() < Date.now()) {
-    throw unauthorized('Code expiré, demandez un nouveau code');
+    throw genericFailure;
   }
 
-  if (user.passwordResetCode !== input.code) {
-    throw unauthorized('Code invalide');
+  if (!codeEquals(user.passwordResetCode, input.code)) {
+    throw genericFailure;
   }
 
   const passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
@@ -384,17 +472,21 @@ export async function resetPassword(input: ResetPasswordInput) {
 }
 
 export async function resendCode(email: string) {
+  // Message unique : ni l'existence du compte, ni le statut de vérification ne
+  // doivent être exposés (sinon énumération d'emails et de comptes vérifiés).
+  const genericMessage = 'Si un compte existe pour cette adresse, un nouveau code a été envoyé.';
+
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    return { message: 'Si cet e-mail existe, un nouveau code a été envoyé.' };
+    return { message: genericMessage };
   }
 
   if (user.emailVerified) {
-    return { message: 'Cette adresse e-mail est déjà vérifiée.' };
+    return { message: genericMessage };
   }
 
   if (user.emailVerifySentAt && user.emailVerifySentAt.getTime() > Date.now() - RESEND_COOLDOWN_MS) {
-    throw tooManyRequests('Veuillez patienter avant de demander un nouveau code');
+    return { message: genericMessage };
   }
 
   const code = generateCode();
@@ -414,7 +506,7 @@ export async function resendCode(email: string) {
     throw badRequest("Impossible d'envoyer le code de vérification");
   }
 
-  return { message: 'Un nouveau code a été envoyé.' };
+  return { message: genericMessage };
 }
 
 export async function getMe(userId: string) {
